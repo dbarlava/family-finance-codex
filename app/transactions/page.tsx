@@ -67,10 +67,14 @@ function TransactionsContent() {
   const handleDeposit = async (amount: number, description: string) => {
     try {
       const { data: balanceRow } = await supabase.from('balance').select('id').single()
+      if (!balanceRow) {
+        throw new Error('Balance record not found')
+      }
+
       await supabase
         .from('balance')
         .update({ amount: balance + amount, updated_at: new Date().toISOString() })
-        .eq('id', balanceRow.id)
+        .eq('id', balanceRow!.id)
 
       await supabase.from('transactions').insert({
         type: 'deposit',

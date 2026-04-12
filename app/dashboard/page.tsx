@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Bill, Transaction, Balance } from '@/lib/types'
+import { Bill, Transaction } from '@/lib/types'
 import { AuthGuard } from '@/components/AuthGuard'
 import { Navbar } from '@/components/Navbar'
 import { BalanceCard } from '@/components/BalanceCard'
@@ -68,7 +68,7 @@ function DashboardContent() {
       const thirtyDaysFromNow = addDays(now, 30)
       const upcoming = (billsData || []).filter(
         bill =>
-          \!bill.is_paid &&
+          !bill.is_paid &&
           new Date(bill.due_date) <= thirtyDaysFromNow &&
           new Date(bill.due_date) >= now
       )
@@ -114,7 +114,7 @@ function DashboardContent() {
 
   const handleMarkAsPaid = async (bill: Bill) => {
     const confirmed = confirm(`Mark "${bill.name}" as paid?`)
-    if (\!confirmed) return
+    if (!confirmed) return
 
     try {
       const newBalance = balance - bill.amount
@@ -124,6 +124,10 @@ function DashboardContent() {
         .from('balance')
         .select('id')
         .single()
+
+      if (!balanceData) {
+        throw new Error('Balance record not found')
+      }
 
       await supabase
         .from('balance')

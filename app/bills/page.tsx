@@ -96,6 +96,10 @@ function BillsContent() {
       // Get balance row id
       const { data: balanceRow } = await supabase.from('balance').select('id').single()
 
+      if (!balanceRow) {
+        throw new Error('Balance record not found')
+      }
+
       // Update balance
       await supabase
         .from('balance')

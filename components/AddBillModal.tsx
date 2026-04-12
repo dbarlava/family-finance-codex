@@ -27,7 +27,7 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (\!name || \!amount || \!dueDate || parseFloat(amount) <= 0) return
+    if (!name || !amount || !dueDate || parseFloat(amount) <= 0) return
     
     setLoading(true)
     await onSubmit({
