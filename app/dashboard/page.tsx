@@ -5,7 +5,9 @@ import { Bill, Transaction } from '@/lib/types'
 import { AuthGuard } from '@/components/AuthGuard'
 import { Navbar } from '@/components/Navbar'
 import { BalanceCard } from '@/components/BalanceCard'
+import { PayBillModal } from '@/components/PayBillModal'
 import { format } from 'date-fns'
+import type { PaymentMethod } from '@/lib/types'
 import {
   formatCurrency,
   formatDateOnly,
@@ -31,6 +33,7 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payingBillId, setPayingBillId] = useState<string | null>(null)
+  const [billToPay, setBillToPay] = useState<Bill | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -78,14 +81,15 @@ function DashboardContent() {
     }
   }
 
-  const handleMarkAsPaid = async (bill: Bill) => {
-    const confirmed = confirm(`Mark "${bill.name}" as paid?`)
-    if (!confirmed) return
-
+  const handleMarkAsPaid = async (
+    bill: Bill,
+    details: { paymentMethod?: PaymentMethod; memo?: string }
+  ) => {
     try {
       setError('')
       setPayingBillId(bill.id)
-      setBalance(await payBill(bill))
+      setBalance(await payBill(bill, details))
+      setBillToPay(null)
       await fetchData()
     } catch (error) {
       console.error('Error marking bill as paid:', error)
@@ -184,7 +188,7 @@ function DashboardContent() {
                     <div className="flex items-center justify-between gap-4 sm:ml-4">
                       <p className="font-bold text-gray-900">{formatCurrency(bill.amount)}</p>
                       <button
-                        onClick={() => handleMarkAsPaid(bill)}
+                        onClick={() => setBillToPay(bill)}
                         disabled={payingBillId === bill.id}
                         className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
                       >
@@ -218,6 +222,11 @@ function DashboardContent() {
                         <p className="text-sm text-gray-500">
                           {format(new Date(tx.created_at), 'MMM d, yyyy')}
                         </p>
+                        {(tx.payment_method || tx.memo) && (
+                          <p className="text-xs text-gray-400">
+                            {[tx.payment_method, tx.memo].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(tx.category)}`}>
                         {tx.category}
@@ -233,6 +242,14 @@ function DashboardContent() {
           </div>
         </div>
       </main>
+
+      {billToPay && (
+        <PayBillModal
+          bill={billToPay}
+          onClose={() => setBillToPay(null)}
+          onSubmit={details => handleMarkAsPaid(billToPay, details)}
+        />
+      )}
     </div>
   )
 }

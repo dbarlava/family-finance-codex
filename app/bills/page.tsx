@@ -5,8 +5,9 @@ import { Bill, Category } from '@/lib/types'
 import { AuthGuard } from '@/components/AuthGuard'
 import { Navbar } from '@/components/Navbar'
 import { AddBillModal } from '@/components/AddBillModal'
+import { PayBillModal } from '@/components/PayBillModal'
 import { format } from 'date-fns'
-import type { RecurrencePeriod } from '@/lib/types'
+import type { PaymentMethod, RecurrencePeriod } from '@/lib/types'
 import {
   addBill,
   deleteBill,
@@ -34,6 +35,7 @@ function BillsContent() {
   const [error, setError] = useState('')
   const [payingBillId, setPayingBillId] = useState<string | null>(null)
   const [deletingBillId, setDeletingBillId] = useState<string | null>(null)
+  const [billToPay, setBillToPay] = useState<Bill | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -82,14 +84,15 @@ function BillsContent() {
     }
   }
 
-  const handleMarkAsPaid = async (bill: Bill) => {
-    const confirmed = confirm(`Mark "${bill.name}" (${formatCurrency(bill.amount)}) as paid?\n\nThis will deduct ${formatCurrency(bill.amount)} from your balance.`)
-    if (!confirmed) return
-
+  const handleMarkAsPaid = async (
+    bill: Bill,
+    details: { paymentMethod?: PaymentMethod; memo?: string }
+  ) => {
     try {
       setError('')
       setPayingBillId(bill.id)
-      setBalance(await payBill(bill))
+      setBalance(await payBill(bill, details))
+      setBillToPay(null)
       await fetchData()
     } catch (error) {
       console.error('Error marking bill as paid:', error)
@@ -203,7 +206,7 @@ function BillsContent() {
                     <div className="flex flex-wrap items-center justify-between gap-3 sm:ml-4 sm:shrink-0">
                       <p className="font-bold text-gray-900 text-lg">{formatCurrency(bill.amount)}</p>
                       <button
-                        onClick={() => handleMarkAsPaid(bill)}
+                        onClick={() => setBillToPay(bill)}
                         disabled={payingBillId === bill.id}
                         className="px-3 py-1.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
                       >
@@ -280,6 +283,14 @@ function BillsContent() {
         <AddBillModal
           onClose={() => setShowAddModal(false)}
           onSubmit={handleAddBill}
+        />
+      )}
+
+      {billToPay && (
+        <PayBillModal
+          bill={billToPay}
+          onClose={() => setBillToPay(null)}
+          onSubmit={details => handleMarkAsPaid(billToPay, details)}
         />
       )}
     </div>

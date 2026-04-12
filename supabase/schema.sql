@@ -56,7 +56,18 @@ CREATE TABLE IF NOT EXISTS transactions (
   description TEXT NOT NULL,
   category    TEXT NOT NULL DEFAULT 'Other',
   bill_id     UUID REFERENCES bills(id) ON DELETE SET NULL,
+  payment_method TEXT,
+  memo        TEXT,
   created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS reminder_log (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  bill_id     UUID REFERENCES bills(id) ON DELETE CASCADE,
+  due_date    DATE NOT NULL,
+  sent_to     TEXT NOT NULL,
+  sent_at     TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (bill_id, due_date, sent_to)
 );
 
 
@@ -68,6 +79,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 ALTER TABLE balance      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bills        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reminder_log ENABLE ROW LEVEL SECURITY;
 
 -- Allow any authenticated (logged-in) user full access to all tables
 CREATE POLICY "Authenticated users can manage balance"
@@ -84,6 +96,12 @@ CREATE POLICY "Authenticated users can manage bills"
 
 CREATE POLICY "Authenticated users can manage transactions"
   ON transactions FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can manage reminder log"
+  ON reminder_log FOR ALL
   TO authenticated
   USING (true)
   WITH CHECK (true);
@@ -164,7 +182,11 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION pay_bill(p_bill_id UUID)
+CREATE OR REPLACE FUNCTION pay_bill(
+  p_bill_id UUID,
+  p_payment_method TEXT DEFAULT NULL,
+  p_memo TEXT DEFAULT NULL
+)
 RETURNS NUMERIC
 LANGUAGE plpgsql
 AS $$
@@ -212,8 +234,24 @@ BEGIN
       paid_date = NOW()
   WHERE id = v_bill.id;
 
-  INSERT INTO transactions (type, amount, description, category, bill_id)
-  VALUES ('payment', v_bill.amount, v_bill.name, v_bill.category, v_bill.id);
+  INSERT INTO transactions (
+    type,
+    amount,
+    description,
+    category,
+    bill_id,
+    payment_method,
+    memo
+  )
+  VALUES (
+    'payment',
+    v_bill.amount,
+    v_bill.name,
+    v_bill.category,
+    v_bill.id,
+    NULLIF(TRIM(p_payment_method), ''),
+    NULLIF(TRIM(p_memo), '')
+  );
 
   IF v_bill.is_recurring AND v_bill.recurrence_period IS NOT NULL THEN
     v_next_due_date :=

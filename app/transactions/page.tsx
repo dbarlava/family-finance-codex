@@ -163,6 +163,11 @@ function TransactionsContent() {
                       <p className="text-sm text-gray-400">
                         {format(new Date(tx.created_at), 'MMM d, yyyy · h:mm a')}
                       </p>
+                      {(tx.payment_method || tx.memo) && (
+                        <p className="text-xs text-gray-400">
+                          {[tx.payment_method, tx.memo].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
                     </div>
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium shrink-0 ${getCategoryColor(tx.category)}`}>
                       {tx.category}

@@ -19,6 +19,23 @@ export const CATEGORIES: Category[] = [
 
 export type RecurrencePeriod = 'weekly' | 'monthly' | 'quarterly' | 'yearly'
 
+export type PaymentMethod =
+  | 'Bank Transfer'
+  | 'Debit Card'
+  | 'Credit Card'
+  | 'Check'
+  | 'Cash'
+  | 'Other'
+
+export const PAYMENT_METHODS: PaymentMethod[] = [
+  'Bank Transfer',
+  'Debit Card',
+  'Credit Card',
+  'Check',
+  'Cash',
+  'Other',
+]
+
 export interface Bill {
   id: string
   name: string
@@ -40,6 +57,8 @@ export interface Transaction {
   description: string
   category: Category
   bill_id?: string
+  payment_method?: PaymentMethod
+  memo?: string
   created_at: string
 }
 

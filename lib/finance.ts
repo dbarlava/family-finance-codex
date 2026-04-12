@@ -1,6 +1,6 @@
 import { addDays, addMonths, addYears, format } from 'date-fns'
 import { supabase } from './supabase'
-import type { Bill, Category, RecurrencePeriod } from './types'
+import type { Bill, Category, PaymentMethod, RecurrencePeriod } from './types'
 
 export const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
@@ -99,9 +99,16 @@ export async function recordDeposit(amount: number, description: string) {
   return Number(data)
 }
 
-export async function payBill(bill: Bill) {
+export type PaymentDetails = {
+  paymentMethod?: PaymentMethod
+  memo?: string
+}
+
+export async function payBill(bill: Bill, details: PaymentDetails = {}) {
   const { data, error } = await supabase.rpc('pay_bill', {
     p_bill_id: bill.id,
+    p_payment_method: details.paymentMethod,
+    p_memo: details.memo,
   })
 
   if (error) throw error
