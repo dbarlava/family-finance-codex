@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import nodemailer from 'nodemailer'
 
 async function sendInviteEmail(to: string, inviteLink: string, appUrl: string) {
-  const resendApiKey = process.env.RESEND_API_KEY
-  const from = process.env.REMINDER_FROM_EMAIL
+  const gmailUser = process.env.GMAIL_USER
+  const gmailAppPassword = process.env.GMAIL_APP_PASSWORD
 
-  if (!resendApiKey || !from) {
-    console.warn('Resend not configured — skipping invite email, use the link manually.')
+  if (!gmailUser || !gmailAppPassword) {
+    console.warn('Gmail SMTP not configured — skipping invite email, use the link manually.')
     return false
   }
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: gmailUser, pass: gmailAppPassword },
+  })
 
   const html = `
 <!DOCTYPE html>
@@ -53,28 +59,19 @@ async function sendInviteEmail(to: string, inviteLink: string, appUrl: string) {
 </body>
 </html>`
 
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
+  try {
+    await transporter.sendMail({
+      from: `"Family Finance" <${gmailUser}>`,
       to,
       subject: "You've been invited to Family Finance",
       html,
       text: `You've been invited to join your family's Finance dashboard.\n\nClick the link below to accept your invite and set up your account:\n\n${inviteLink}\n\nThis link expires in 24 hours.`,
-    }),
-  })
-
-  if (!response.ok) {
-    const body = await response.text()
-    console.error(`Invite email failed (${response.status}): ${body}`)
+    })
+    return true
+  } catch (err) {
+    console.error('Invite email failed:', err)
     return false
   }
-
-  return true
 }
 
 function getSupabaseUrl() {
