@@ -5,6 +5,7 @@ import { Bill, Category } from '@/lib/types'
 import { AuthGuard } from '@/components/AuthGuard'
 import { AddBillModal } from '@/components/AddBillModal'
 import { PayBillModal } from '@/components/PayBillModal'
+import { SiteRibbon } from '@/components/SiteRibbon'
 import { format } from 'date-fns'
 import type { PaymentMethod, RecurrencePeriod } from '@/lib/types'
 import {
@@ -132,6 +133,7 @@ function BillsContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SiteRibbon />
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">

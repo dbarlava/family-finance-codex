@@ -5,6 +5,7 @@ import { Bill, Transaction } from '@/lib/types'
 import { AuthGuard } from '@/components/AuthGuard'
 import { BalanceCard } from '@/components/BalanceCard'
 import { PayBillModal } from '@/components/PayBillModal'
+import { SiteRibbon } from '@/components/SiteRibbon'
 import { format } from 'date-fns'
 import type { PaymentMethod } from '@/lib/types'
 import {
@@ -112,6 +113,7 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SiteRibbon />
       <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 gap-6">
           <div>
