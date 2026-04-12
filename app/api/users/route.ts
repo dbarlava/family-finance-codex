@@ -107,10 +107,10 @@ function getAppUrl(request: Request) {
   return new URL(request.url).origin
 }
 
-function getAcceptInviteLink(appUrl: string, tokenHash: string) {
+function getAcceptInviteLink(appUrl: string, tokenHash: string, type: string) {
   const inviteUrl = new URL('/accept-invite', appUrl)
   inviteUrl.searchParams.set('token_hash', tokenHash)
-  inviteUrl.searchParams.set('type', 'invite')
+  inviteUrl.searchParams.set('type', type)
   return inviteUrl.toString()
 }
 
@@ -213,12 +213,13 @@ export async function POST(request: Request) {
 
     if (error) throw error
 
-    const inviteLink = data.properties.action_link
-      || (data.properties.hashed_token ? getAcceptInviteLink(appUrl, data.properties.hashed_token) : '')
-    if (!inviteLink) {
-      throw new Error('Supabase did not return an invite link')
+    const tokenHash = data.properties.hashed_token
+    const verificationType = data.properties.verification_type || 'invite'
+    if (!tokenHash) {
+      throw new Error('Supabase did not return an invite token')
     }
 
+    const inviteLink = getAcceptInviteLink(appUrl, tokenHash, verificationType)
     const emailSent = await sendInviteEmail(email, inviteLink, appUrl)
 
     return NextResponse.json({

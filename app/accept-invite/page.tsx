@@ -4,7 +4,16 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 type Stage = 'loading' | 'set-password' | 'error'
-type InviteLinkType = 'invite' | 'recovery' | 'magiclink'
+type InviteLinkType = 'signup' | 'invite' | 'magiclink' | 'recovery' | 'email_change' | 'email'
+
+function isInviteLinkType(type: string | null): type is InviteLinkType {
+  return type === 'signup'
+    || type === 'invite'
+    || type === 'magiclink'
+    || type === 'recovery'
+    || type === 'email_change'
+    || type === 'email'
+}
 
 export default function AcceptInvitePage() {
   const [stage, setStage] = useState<Stage>('loading')
@@ -58,9 +67,9 @@ export default function AcceptInvitePage() {
       }
 
       const tokenHash = url.searchParams.get('token_hash')
-      const type = url.searchParams.get('type') as InviteLinkType | null
+      const type = url.searchParams.get('type')
 
-      if (tokenHash && (type === 'invite' || type === 'recovery' || type === 'magiclink')) {
+      if (tokenHash && isInviteLinkType(type)) {
         const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
         if (error) {
           const { data: { session } } = await supabase.auth.getSession()
