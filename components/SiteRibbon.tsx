@@ -9,6 +9,7 @@ export function SiteRibbon() {
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/bills', label: 'Bills' },
     { href: '/transactions', label: 'Transactions' },
+    { href: '/users', label: 'Users' },
   ]
 
   const handleSignOut = async () => {
@@ -38,7 +39,7 @@ export function SiteRibbon() {
           </button>
         </div>
 
-        <nav className="grid grid-cols-3 gap-2 rounded-lg bg-gray-100 p-1">
+        <nav className="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 sm:grid-cols-4">
           {links.map(link => {
             const active = pathname === link.href
             return (
