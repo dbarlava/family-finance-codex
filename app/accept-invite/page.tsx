@@ -15,27 +15,54 @@ export default function AcceptInvitePage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Supabase appends the session tokens to the redirect URL as a hash fragment.
-    // The client SDK detects this automatically via onAuthStateChange.
+    const url = new URL(window.location.href)
+
+    // PKCE flow: Supabase redirects with ?token_hash=...&type=invite
+    const token_hash = url.searchParams.get('token_hash')
+    const type = url.searchParams.get('type')
+
+    if (token_hash && type === 'invite') {
+      supabase.auth
+        .verifyOtp({ token_hash, type: 'invite' })
+        .then(({ error }) => {
+          if (error) {
+            setPageError('This invite link is invalid or has expired. Please ask for a new invite.')
+            setStage('error')
+          } else {
+            setStage('set-password')
+          }
+        })
+      return
+    }
+
+    // Implicit flow: Supabase puts tokens in the hash fragment
+    // The Supabase client detects this automatically via onAuthStateChange
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session) {
         setStage('set-password')
       }
     })
 
-    // Also handle the case where the session was already set before the listener fires
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        setPageError('This invite link is invalid or has expired. Please ask for a new invite.')
-        setStage('error')
-        return
-      }
-      if (session) {
-        setStage('set-password')
-      }
+    // Also check if a session already exists (e.g. page re-render after token processed)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setStage('set-password')
     })
 
-    return () => subscription.unsubscribe()
+    // Fallback: if nothing resolves after 6 seconds, show an error
+    const timeout = setTimeout(() => {
+      setStage(s => {
+        if (s === 'loading') {
+          setPageError('Could not verify your invite link. It may have expired — please ask for a new one.')
+          return 'error'
+        }
+        return s
+      })
+    }, 6000)
+
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
   }, [])
 
   const handleSetPassword = async (e: React.FormEvent) => {
@@ -98,7 +125,6 @@ export default function AcceptInvitePage() {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl border border-gray-200 shadow-xl p-8 w-full max-w-md">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex h-14 w-14 items-center justify-center rounded-lg bg-gray-900 text-lg font-bold text-white mb-4">
             FF
@@ -117,9 +143,7 @@ export default function AcceptInvitePage() {
 
         <form onSubmit={handleSetPassword} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              New Password
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
             <input
               type="password"
               value={password}
@@ -132,9 +156,7 @@ export default function AcceptInvitePage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Confirm Password
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
             <input
               type="password"
               value={confirmPassword}
@@ -156,9 +178,7 @@ export default function AcceptInvitePage() {
 
         <p className="text-center text-xs text-gray-400 mt-6">
           Already have a password?{' '}
-          <a href="/login" className="underline hover:text-gray-600">
-            Sign in
-          </a>
+          <a href="/login" className="underline hover:text-gray-600">Sign in</a>
         </p>
       </div>
     </div>
