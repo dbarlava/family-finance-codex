@@ -15,6 +15,7 @@ import {
   formatDateOnly,
   getCategoryColor,
   isOverdue,
+  markBillUnpaid,
   payBill,
 } from '@/lib/finance'
 
@@ -36,6 +37,7 @@ function BillsContent() {
   const [error, setError] = useState('')
   const [payingBillId, setPayingBillId] = useState<string | null>(null)
   const [deletingBillId, setDeletingBillId] = useState<string | null>(null)
+  const [markingUnpaidBillId, setMarkingUnpaidBillId] = useState<string | null>(null)
   const [billToPay, setBillToPay] = useState<Bill | null>(null)
   const [billToView, setBillToView] = useState<Bill | null>(null)
 
@@ -108,19 +110,41 @@ function BillsContent() {
   }
 
   const handleDeleteBill = async (bill: Bill) => {
-    const confirmed = confirm(`Delete "${bill.name}"? This cannot be undone.`)
+    const message = bill.is_paid
+      ? `Delete paid bill "${bill.name}"? This will add ${formatCurrency(bill.amount)} back to the balance and remove its payment transaction. This cannot be undone.`
+      : `Delete "${bill.name}"? This cannot be undone.`
+    const confirmed = confirm(message)
     if (!confirmed) return
 
     try {
       setError('')
       setDeletingBillId(bill.id)
-      await deleteBill(bill.id)
+      await deleteBill(bill)
       await fetchData()
     } catch (error) {
       console.error('Error deleting bill:', error)
       setError('Bill was not deleted. Try again.')
     } finally {
       setDeletingBillId(null)
+    }
+  }
+
+  const handleMarkUnpaid = async (bill: Bill) => {
+    const confirmed = confirm(
+      `Mark "${bill.name}" as unpaid? This will add ${formatCurrency(bill.amount)} back to the balance and remove its payment transaction.`
+    )
+    if (!confirmed) return
+
+    try {
+      setError('')
+      setMarkingUnpaidBillId(bill.id)
+      await markBillUnpaid(bill)
+      await fetchData()
+    } catch (error) {
+      console.error('Error marking bill unpaid:', error)
+      setError('Bill was not marked unpaid. Try again.')
+    } finally {
+      setMarkingUnpaidBillId(null)
     }
   }
 
@@ -247,7 +271,7 @@ function BillsContent() {
               Paid Bills
               <span className="ml-2 text-sm font-normal text-gray-500">({paidBills.length})</span>
             </h2>
-            <span className="text-gray-400 text-xl">{showPaid ? 'Up' : 'Down'}</span>
+            <span className="text-sm font-medium text-gray-500">{showPaid ? 'Hide' : 'Show'}</span>
           </button>
 
           {showPaid && (
@@ -278,6 +302,13 @@ function BillsContent() {
                         className="px-3 py-1.5 bg-white text-gray-700 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
                       >
                         View Details
+                      </button>
+                      <button
+                        onClick={() => handleMarkUnpaid(bill)}
+                        disabled={markingUnpaidBillId === bill.id}
+                        className="px-3 py-1.5 bg-white text-gray-700 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                      >
+                        {markingUnpaidBillId === bill.id ? 'Saving...' : 'Mark Unpaid'}
                       </button>
                       <button
                         onClick={() => handleDeleteBill(bill)}

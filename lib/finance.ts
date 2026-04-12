@@ -84,8 +84,60 @@ export async function addBill(billData: NewBill) {
   if (error) throw error
 }
 
-export async function deleteBill(billId: string) {
-  const { error } = await supabase.from('bills').delete().eq('id', billId)
+async function restorePaidBillAmount(bill: Bill) {
+  if (!bill.is_paid) return
+
+  const { data: currentBalance, error: balanceError } = await supabase
+    .from('balance')
+    .select('*')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (balanceError) throw balanceError
+
+  if (!currentBalance) {
+    const { error } = await supabase.from('balance').insert({ amount: bill.amount })
+    if (error) throw error
+  } else {
+    const { error } = await supabase
+      .from('balance')
+      .update({
+        amount: Number(currentBalance.amount) + Number(bill.amount),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', currentBalance.id)
+
+    if (error) throw error
+  }
+
+  const { error: txError } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('bill_id', bill.id)
+    .eq('type', 'payment')
+
+  if (txError) throw txError
+}
+
+export async function deleteBill(bill: Bill) {
+  await restorePaidBillAmount(bill)
+
+  const { error } = await supabase.from('bills').delete().eq('id', bill.id)
+  if (error) throw error
+}
+
+export async function markBillUnpaid(bill: Bill) {
+  await restorePaidBillAmount(bill)
+
+  const { error } = await supabase
+    .from('bills')
+    .update({
+      is_paid: false,
+      paid_date: null,
+    })
+    .eq('id', bill.id)
+
   if (error) throw error
 }
 
