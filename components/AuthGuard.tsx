@@ -1,5 +1,6 @@
 'use client'
 import { useAuth } from '@/app/providers'
+import { Navbar } from './Navbar'
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -14,5 +15,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!user) return null
 
-  return <>{children}</>
+  return (
+    <>
+      <Navbar />
+      {children}
+    </>
+  )
 }

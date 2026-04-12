@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Bill, Category } from '@/lib/types'
 import { AuthGuard } from '@/components/AuthGuard'
-import { Navbar } from '@/components/Navbar'
 import { AddBillModal } from '@/components/AddBillModal'
 import { PayBillModal } from '@/components/PayBillModal'
 import { format } from 'date-fns'
@@ -133,7 +132,6 @@ function BillsContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">

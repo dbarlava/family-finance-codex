@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Bill, Transaction } from '@/lib/types'
 import { AuthGuard } from '@/components/AuthGuard'
-import { Navbar } from '@/components/Navbar'
 import { BalanceCard } from '@/components/BalanceCard'
 import { PayBillModal } from '@/components/PayBillModal'
 import { format } from 'date-fns'
@@ -113,7 +112,6 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
       <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 gap-6">
           <div>
