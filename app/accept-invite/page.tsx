@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 type Stage = 'loading' | 'set-password' | 'error'
+type InviteLinkType = 'invite' | 'recovery' | 'magiclink'
 
 export default function AcceptInvitePage() {
   const [stage, setStage] = useState<Stage>('loading')
@@ -15,51 +16,86 @@ export default function AcceptInvitePage() {
   const router = useRouter()
 
   useEffect(() => {
-    const url = new URL(window.location.href)
+    let cancelled = false
+    let timeout: ReturnType<typeof setTimeout>
 
-    // PKCE flow: Supabase redirects with ?token_hash=...&type=invite
-    const token_hash = url.searchParams.get('token_hash')
-    const type = url.searchParams.get('type')
-
-    if (token_hash && type === 'invite') {
-      supabase.auth
-        .verifyOtp({ token_hash, type: 'invite' })
-        .then(({ error }) => {
-          if (error) {
-            setPageError('This invite link is invalid or has expired. Please ask for a new invite.')
-            setStage('error')
-          } else {
-            setStage('set-password')
-          }
-        })
-      return
+    const showSetPassword = () => {
+      if (cancelled) return
+      window.history.replaceState(null, '', '/accept-invite')
+      setStage('set-password')
     }
 
-    // Implicit flow: Supabase puts tokens in the hash fragment
-    // The Supabase client detects this automatically via onAuthStateChange
+    const showExpired = () => {
+      if (cancelled) return
+      setPageError('This invite link is invalid or has expired. Please ask for a new invite.')
+      setStage('error')
+    }
+
+    const verifyInvite = async () => {
+      const { data: { session: existingSession } } = await supabase.auth.getSession()
+      if (existingSession) {
+        showSetPassword()
+        return
+      }
+
+      const url = new URL(window.location.href)
+      const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''))
+      const accessToken = hashParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token')
+
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        })
+
+        if (error) {
+          showExpired()
+        } else {
+          showSetPassword()
+        }
+        return
+      }
+
+      const tokenHash = url.searchParams.get('token_hash')
+      const type = url.searchParams.get('type') as InviteLinkType | null
+
+      if (tokenHash && (type === 'invite' || type === 'recovery' || type === 'magiclink')) {
+        const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
+        if (error) {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session) {
+            showSetPassword()
+          } else {
+            showExpired()
+          }
+        } else {
+          showSetPassword()
+        }
+        return
+      }
+
+      timeout = setTimeout(() => {
+        setStage(s => {
+          if (s === 'loading') {
+            setPageError('Could not verify your invite link. It may have expired — please ask for a new one.')
+            return 'error'
+          }
+          return s
+        })
+      }, 6000)
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session) {
-        setStage('set-password')
+        showSetPassword()
       }
     })
 
-    // Also check if a session already exists (e.g. page re-render after token processed)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setStage('set-password')
-    })
-
-    // Fallback: if nothing resolves after 6 seconds, show an error
-    const timeout = setTimeout(() => {
-      setStage(s => {
-        if (s === 'loading') {
-          setPageError('Could not verify your invite link. It may have expired — please ask for a new one.')
-          return 'error'
-        }
-        return s
-      })
-    }, 6000)
+    verifyInvite()
 
     return () => {
+      cancelled = true
       subscription.unsubscribe()
       clearTimeout(timeout)
     }

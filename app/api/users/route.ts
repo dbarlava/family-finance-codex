@@ -213,12 +213,12 @@ export async function POST(request: Request) {
 
     if (error) throw error
 
-    const tokenHash = data.properties.hashed_token
-    if (!tokenHash) {
-      throw new Error('Supabase did not return an invite token')
+    const inviteLink = data.properties.action_link
+      || (data.properties.hashed_token ? getAcceptInviteLink(appUrl, data.properties.hashed_token) : '')
+    if (!inviteLink) {
+      throw new Error('Supabase did not return an invite link')
     }
 
-    const inviteLink = getAcceptInviteLink(appUrl, tokenHash)
     const emailSent = await sendInviteEmail(email, inviteLink, appUrl)
 
     return NextResponse.json({
