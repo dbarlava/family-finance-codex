@@ -24,7 +24,7 @@ export function DepositModal({ onClose, onSubmit }: DepositModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Add Deposit</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -37,7 +37,7 @@ export function DepositModal({ onClose, onSubmit }: DepositModalProps) {
               onChange={e => setAmount(e.target.value)}
               required
               autoFocus
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
               placeholder="0.00"
             />
           </div>
@@ -47,7 +47,7 @@ export function DepositModal({ onClose, onSubmit }: DepositModalProps) {
               type="text"
               value={description}
               onChange={e => setDescription(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
               placeholder="e.g. Paycheck, Freelance payment..."
             />
           </div>
@@ -55,7 +55,7 @@ export function DepositModal({ onClose, onSubmit }: DepositModalProps) {
             <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2.5 font-medium hover:bg-gray-50">
               Cancel
             </button>
-            <button type="submit" disabled={loading} className="flex-1 bg-green-600 text-white rounded-lg py-2.5 font-medium hover:bg-green-700 disabled:opacity-50">
+            <button type="submit" disabled={loading} className="flex-1 bg-gray-900 text-white rounded-lg py-2.5 font-medium hover:bg-gray-700 disabled:opacity-50">
               {loading ? 'Adding...' : 'Add Deposit'}
             </button>
           </div>

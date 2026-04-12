@@ -79,7 +79,7 @@ function TransactionsContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
       </div>
     )
   }
@@ -89,16 +89,16 @@ function TransactionsContent() {
       <Navbar />
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
-            <p className="text-gray-500 mt-0.5">{transactions.length} total transactions</p>
+            <h1 className="text-2xl font-bold text-gray-950">Transactions</h1>
+            <p className="text-gray-500 mt-0.5">{transactions.length} total transactions recorded.</p>
           </div>
           <button
             onClick={() => setShowDeposit(true)}
-            className="bg-green-600 text-white px-4 py-2.5 rounded-lg font-medium hover:bg-green-700 transition-colors"
+            className="bg-gray-900 text-white px-4 py-2.5 rounded-lg font-medium hover:bg-gray-700 transition-colors"
           >
-            + Add Deposit
+            Add Deposit
           </button>
         </div>
 
@@ -112,7 +112,7 @@ function TransactionsContent() {
         <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-3">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
             <p className="text-sm text-gray-500 mb-1">Current Balance</p>
-            <p className={`text-2xl font-bold ${balance < 0 ? 'text-red-600' : 'text-blue-600'}`}>
+            <p className={`text-2xl font-bold ${balance < 0 ? 'text-red-600' : 'text-gray-950'}`}>
               {formatCurrency(balance)}
             </p>
           </div>
@@ -130,11 +130,11 @@ function TransactionsContent() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           {/* Filter */}
           <div className="flex flex-col gap-3 mb-5 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-bold text-gray-900">History</h2>
+            <h2 className="text-lg font-bold text-gray-950">History</h2>
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value as Category | 'All')}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
             >
               <option value="All">All Categories</option>
               {CATEGORIES.map(cat => (
@@ -144,7 +144,7 @@ function TransactionsContent() {
           </div>
 
           {filtered.length === 0 ? (
-            <p className="text-gray-500 text-center py-12">No transactions yet. Add a deposit to get started!</p>
+            <p className="text-gray-500 text-center py-12">No transactions yet. Add a deposit to get started.</p>
           ) : (
             <div className="space-y-2">
               {filtered.map(tx => (
@@ -153,10 +153,10 @@ function TransactionsContent() {
                   className="flex items-center justify-between p-4 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-100 transition-colors"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                      tx.type === 'deposit' ? 'bg-green-100' : 'bg-red-100'
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-sm font-bold ${
+                      tx.type === 'deposit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                     }`}>
-                      <span className="text-lg">{tx.type === 'deposit' ? '📥' : '📤'}</span>
+                      <span>{tx.type === 'deposit' ? '+' : '-'}</span>
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium text-gray-900 truncate">{tx.description}</p>

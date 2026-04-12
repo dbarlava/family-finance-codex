@@ -102,7 +102,7 @@ function DashboardContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
       </div>
     )
   }
@@ -112,6 +112,11 @@ function DashboardContent() {
       <Navbar />
       <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 gap-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-950">Dashboard</h1>
+            <p className="mt-1 text-gray-500">A quick view of balance, upcoming obligations, and recent activity.</p>
+          </div>
+
           {/* Balance Card */}
           <BalanceCard balance={balance} onDeposit={handleDeposit} />
 
@@ -124,7 +129,7 @@ function DashboardContent() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
               <p className="text-sm text-gray-500 mb-1">Due next 30 days</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(dueNext30)}</p>
+              <p className="text-2xl font-bold text-gray-950">{formatCurrency(dueNext30)}</p>
               <p className="text-sm text-gray-500 mt-1">{upcomingBills.length} unpaid bills</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
@@ -136,7 +141,7 @@ function DashboardContent() {
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
               <p className="text-sm text-gray-500 mb-1">Needs attention</p>
-              <p className={`text-2xl font-bold ${overdueCount > 0 ? 'text-red-600' : 'text-blue-600'}`}>
+              <p className={`text-2xl font-bold ${overdueCount > 0 ? 'text-red-600' : 'text-gray-950'}`}>
                 {overdueCount}
               </p>
               <p className="text-sm text-gray-500 mt-1">Overdue bills</p>
@@ -145,7 +150,8 @@ function DashboardContent() {
 
           {/* Upcoming Bills */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Bills Due Now and Next 30 Days</h2>
+            <h2 className="text-xl font-bold text-gray-950 mb-1">Bills Due Now and Next 30 Days</h2>
+            <p className="mb-4 text-sm text-gray-500">Weekend due dates are moved to the Friday before.</p>
             {upcomingBills.length === 0 ? (
               <p className="text-gray-500 text-center py-8">No bills due right now or in the next 30 days</p>
             ) : (
@@ -180,7 +186,7 @@ function DashboardContent() {
                       <button
                         onClick={() => handleMarkAsPaid(bill)}
                         disabled={payingBillId === bill.id}
-                        className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                        className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
                       >
                         {payingBillId === bill.id ? 'Saving...' : 'Mark Paid'}
                       </button>
@@ -194,7 +200,7 @@ function DashboardContent() {
 
           {/* Recent Transactions */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Recent Transactions</h2>
+            <h2 className="text-xl font-bold text-gray-950 mb-4">Recent Transactions</h2>
             {recentTransactions.length === 0 ? (
               <p className="text-gray-500 text-center py-8">No transactions yet</p>
             ) : (
@@ -202,8 +208,10 @@ function DashboardContent() {
                 {recentTransactions.map(tx => (
                   <div key={tx.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="flex items-center gap-3 flex-1">
-                      <span className="text-2xl">
-                        {tx.type === 'deposit' ? '📥' : '📤'}
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                        tx.type === 'deposit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}>
+                        {tx.type === 'deposit' ? '+' : '-'}
                       </span>
                       <div>
                         <p className="font-semibold text-gray-900">{tx.description}</p>

@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { DepositModal } from './DepositModal'
+import { formatCurrency } from '@/lib/finance'
 
 interface BalanceCardProps {
   balance: number
@@ -10,22 +11,26 @@ interface BalanceCardProps {
 export function BalanceCard({ balance, onDeposit }: BalanceCardProps) {
   const [showDeposit, setShowDeposit] = useState(false)
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
-
   const isNegative = balance < 0
 
   return (
     <>
-      <div className={`rounded-2xl p-6 text-white ${isNegative ? 'bg-red-600' : 'bg-gradient-to-br from-blue-600 to-blue-700'}`}>
-        <p className="text-blue-100 text-sm font-medium mb-1">Current Balance</p>
-        <p className="text-4xl font-bold mb-4">{formatCurrency(balance)}</p>
-        <button
-          onClick={() => setShowDeposit(true)}
-          className="bg-white/20 hover:bg-white/30 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          + Add Deposit
-        </button>
+      <div className={`rounded-xl border p-6 shadow-sm ${isNegative ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'}`}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-500">Current Balance</p>
+            <p className={`mt-2 text-4xl font-bold tracking-tight ${isNegative ? 'text-red-700' : 'text-gray-950'}`}>
+              {formatCurrency(balance)}
+            </p>
+            <p className="mt-2 text-sm text-gray-500">Updated when deposits and bill payments are recorded.</p>
+          </div>
+          <button
+            onClick={() => setShowDeposit(true)}
+            className="rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+          >
+            Add Deposit
+          </button>
+        </div>
       </div>
 
       {showDeposit && (

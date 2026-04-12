@@ -8,19 +8,24 @@ export function Navbar() {
   const { user, signOut } = useAuth()
 
   const links = [
-    { href: '/dashboard', label: '🏠 Dashboard' },
-    { href: '/bills', label: '📋 Bills' },
-    { href: '/transactions', label: '💸 Transactions' },
+    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/bills', label: 'Bills' },
+    { href: '/transactions', label: 'Transactions' },
   ]
 
   return (
-    <nav className="bg-white shadow-sm border-b border-gray-200">
+    <nav className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur">
       <div className="max-w-6xl mx-auto px-4">
         <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 py-3">
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <span className="text-2xl">💰</span>
-            <span className="font-bold text-gray-900 text-lg">Family Finance</span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-sm font-bold text-white">
+              FF
+            </span>
+            <div>
+              <span className="block font-bold leading-tight text-gray-950">Family Finance</span>
+              <span className="hidden text-xs text-gray-500 sm:block">Household cash flow</span>
+            </div>
           </div>
 
           {/* Nav links */}
@@ -31,8 +36,8 @@ export function Navbar() {
                 href={link.href}
                 className={`shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-colors sm:px-4 ${
                   pathname === link.href
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950'
                 }`}
               >
                 {link.label}
@@ -45,7 +50,7 @@ export function Navbar() {
             <span className="hidden max-w-48 truncate text-sm text-gray-500 md:block">{user?.email}</span>
             <button
               onClick={signOut}
-              className="text-sm text-red-600 hover:text-red-700 font-medium"
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50"
             >
               Sign Out
             </button>

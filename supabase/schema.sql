@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS bills (
   due_date           DATE NOT NULL,
   category           TEXT NOT NULL DEFAULT 'Other',
   is_recurring       BOOLEAN NOT NULL DEFAULT FALSE,
-  recurrence_period  TEXT CHECK (recurrence_period IN ('weekly', 'monthly', 'yearly')),
+  recurrence_period  TEXT CHECK (recurrence_period IN ('weekly', 'monthly', 'quarterly', 'yearly')),
   is_paid            BOOLEAN NOT NULL DEFAULT FALSE,
   paid_date          TIMESTAMPTZ,
   notes              TEXT,
@@ -93,6 +93,35 @@ CREATE POLICY "Authenticated users can manage transactions"
 -- ATOMIC MONEY OPERATIONS
 -- Keep balance, bills, transactions, and recurring bills in sync.
 -- ============================================================
+
+CREATE OR REPLACE FUNCTION adjust_business_due_date(p_due_date DATE)
+RETURNS DATE
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT CASE EXTRACT(ISODOW FROM p_due_date)
+    WHEN 6 THEN p_due_date - INTERVAL '1 day'
+    WHEN 7 THEN p_due_date - INTERVAL '2 days'
+    ELSE p_due_date
+  END::DATE;
+$$;
+
+CREATE OR REPLACE FUNCTION normalize_bill_due_date()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.due_date := adjust_business_due_date(NEW.due_date);
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS bills_normalize_due_date ON bills;
+
+CREATE TRIGGER bills_normalize_due_date
+BEFORE INSERT OR UPDATE OF due_date ON bills
+FOR EACH ROW
+EXECUTE FUNCTION normalize_bill_due_date();
 
 CREATE OR REPLACE FUNCTION record_deposit(
   p_amount NUMERIC,
@@ -189,9 +218,10 @@ BEGIN
   IF v_bill.is_recurring AND v_bill.recurrence_period IS NOT NULL THEN
     v_next_due_date :=
       CASE v_bill.recurrence_period
-        WHEN 'weekly' THEN v_bill.due_date + INTERVAL '7 days'
-        WHEN 'monthly' THEN v_bill.due_date + INTERVAL '1 month'
-        WHEN 'yearly' THEN v_bill.due_date + INTERVAL '1 year'
+        WHEN 'weekly' THEN adjust_business_due_date(v_bill.due_date + INTERVAL '7 days')
+        WHEN 'monthly' THEN adjust_business_due_date(v_bill.due_date + INTERVAL '1 month')
+        WHEN 'quarterly' THEN adjust_business_due_date(v_bill.due_date + INTERVAL '3 months')
+        WHEN 'yearly' THEN adjust_business_due_date(v_bill.due_date + INTERVAL '1 year')
       END;
 
     INSERT INTO bills (

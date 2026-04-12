@@ -10,6 +10,17 @@ export const parseDateOnly = (date: string) => new Date(`${date}T12:00:00`)
 export const formatDateOnly = (date: string, pattern = 'MMM d, yyyy') =>
   format(parseDateOnly(date), pattern)
 
+export const getBusinessDueDate = (date: string) => {
+  const due = parseDateOnly(date)
+  const day = due.getDay()
+
+  if (day === 6) return format(addDays(due, -1), 'yyyy-MM-dd')
+  if (day === 0) return format(addDays(due, -2), 'yyyy-MM-dd')
+  return format(due, 'yyyy-MM-dd')
+}
+
+export const wasMovedFromWeekend = (date: string) => getBusinessDueDate(date) !== date
+
 export const isOverdue = (dueDate: string) => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -29,9 +40,10 @@ export const isDueWithinDays = (dueDate: string, days: number) => {
 export const getNextDueDate = (dueDate: string, recurrencePeriod: RecurrencePeriod) => {
   const current = parseDateOnly(dueDate)
 
-  if (recurrencePeriod === 'weekly') return format(addDays(current, 7), 'yyyy-MM-dd')
-  if (recurrencePeriod === 'monthly') return format(addMonths(current, 1), 'yyyy-MM-dd')
-  return format(addYears(current, 1), 'yyyy-MM-dd')
+  if (recurrencePeriod === 'weekly') return getBusinessDueDate(format(addDays(current, 7), 'yyyy-MM-dd'))
+  if (recurrencePeriod === 'monthly') return getBusinessDueDate(format(addMonths(current, 1), 'yyyy-MM-dd'))
+  if (recurrencePeriod === 'quarterly') return getBusinessDueDate(format(addMonths(current, 3), 'yyyy-MM-dd'))
+  return getBusinessDueDate(format(addYears(current, 1), 'yyyy-MM-dd'))
 }
 
 export const getCategoryColor = (category: string) => {
@@ -65,6 +77,7 @@ export type NewBill = {
 export async function addBill(billData: NewBill) {
   const { error } = await supabase.from('bills').insert({
     ...billData,
+    due_date: getBusinessDueDate(billData.due_date),
     is_paid: false,
   })
 

@@ -17,7 +17,7 @@ export const CATEGORIES: Category[] = [
   'Education', 'Savings', 'Other'
 ]
 
-export type RecurrencePeriod = 'weekly' | 'monthly' | 'yearly'
+export type RecurrencePeriod = 'weekly' | 'monthly' | 'quarterly' | 'yearly'
 
 export interface Bill {
   id: string

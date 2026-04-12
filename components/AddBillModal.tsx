@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { CATEGORIES, type Category, type RecurrencePeriod } from '@/lib/types'
+import { formatDateOnly, getBusinessDueDate, wasMovedFromWeekend } from '@/lib/finance'
 
 interface AddBillModalProps {
   onClose: () => void
@@ -24,6 +25,7 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
   const [recurrencePeriod, setRecurrencePeriod] = useState<RecurrencePeriod>('monthly')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
+  const adjustedDueDate = dueDate ? getBusinessDueDate(dueDate) : ''
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,7 +36,7 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
       await onSubmit({
         name,
         amount: parseFloat(amount),
-        due_date: dueDate,
+      due_date: adjustedDueDate,
         category,
         is_recurring: isRecurring,
         recurrence_period: isRecurring ? recurrencePeriod : undefined,
@@ -47,7 +49,7 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-md my-8">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md my-8 shadow-xl">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Add Bill</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -58,7 +60,7 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
               onChange={e => setName(e.target.value)}
               required
               autoFocus
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
               placeholder="e.g. Rent, Netflix, Electricity..."
             />
           </div>
@@ -72,7 +74,7 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
               value={amount}
               onChange={e => setAmount(e.target.value)}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
               placeholder="0.00"
             />
           </div>
@@ -84,8 +86,13 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
               value={dueDate}
               onChange={e => setDueDate(e.target.value)}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
             />
+            {dueDate && wasMovedFromWeekend(dueDate) && (
+              <p className="mt-2 text-xs font-medium text-amber-700">
+                Weekend due date adjusted to {formatDateOnly(adjustedDueDate)}.
+              </p>
+            )}
           </div>
 
           <div>
@@ -93,7 +100,7 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
             <select
               value={category}
               onChange={e => setCategory(e.target.value as Category)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
             >
               {CATEGORIES.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
@@ -107,7 +114,7 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
               id="recurring"
               checked={isRecurring}
               onChange={e => setIsRecurring(e.target.checked)}
-              className="w-4 h-4 text-blue-600 rounded cursor-pointer"
+              className="w-4 h-4 text-gray-900 rounded cursor-pointer"
             />
             <label htmlFor="recurring" className="text-sm font-medium text-gray-700 cursor-pointer">
               Recurring Bill
@@ -120,10 +127,11 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
               <select
                 value={recurrencePeriod}
                 onChange={e => setRecurrencePeriod(e.target.value as RecurrencePeriod)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
               >
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
                 <option value="yearly">Yearly</option>
               </select>
             </div>
@@ -134,7 +142,7 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
               placeholder="e.g. Account number, payment method..."
               rows={3}
             />
@@ -144,7 +152,7 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
             <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2.5 font-medium hover:bg-gray-50">
               Cancel
             </button>
-            <button type="submit" disabled={loading} className="flex-1 bg-blue-600 text-white rounded-lg py-2.5 font-medium hover:bg-blue-700 disabled:opacity-50">
+            <button type="submit" disabled={loading} className="flex-1 bg-gray-900 text-white rounded-lg py-2.5 font-medium hover:bg-gray-700 disabled:opacity-50">
               {loading ? 'Adding...' : 'Add Bill'}
             </button>
           </div>

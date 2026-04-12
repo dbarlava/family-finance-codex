@@ -123,7 +123,7 @@ function BillsContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
       </div>
     )
   }
@@ -135,16 +135,19 @@ function BillsContent() {
         {/* Header */}
         <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Bills</h1>
+            <h1 className="text-2xl font-bold text-gray-950">Bills</h1>
             <p className="text-gray-500 mt-0.5">
               {unpaidBills.length} unpaid · {formatCurrency(totalUnpaid)} total due
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Weekend due dates are moved to the Friday before.
             </p>
           </div>
           <button
             onClick={() => setShowAddModal(true)}
-            className="bg-blue-600 text-white px-4 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            className="bg-gray-900 text-white px-4 py-2.5 rounded-lg font-medium hover:bg-gray-700 transition-colors"
           >
-            + Add Bill
+            Add Bill
           </button>
         </div>
 
@@ -156,13 +159,13 @@ function BillsContent() {
 
         {/* Unpaid Bills */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">
+          <h2 className="text-lg font-bold text-gray-950 mb-4">
             Unpaid Bills
             <span className="ml-2 text-sm font-normal text-gray-500">({unpaidBills.length})</span>
           </h2>
           {unpaidBills.length === 0 ? (
             <p className="text-gray-500 text-center py-10">
-              🎉 All caught up! No unpaid bills.
+              All caught up. No unpaid bills.
             </p>
           ) : (
             <div className="space-y-3">
@@ -187,8 +190,8 @@ function BillsContent() {
                           {bill.category}
                         </span>
                         {bill.is_recurring && (
-                          <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-full">
-                            🔄 {bill.recurrence_period}
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-full capitalize">
+                            {bill.recurrence_period}
                           </span>
                         )}
                       </div>
@@ -202,7 +205,7 @@ function BillsContent() {
                       <button
                         onClick={() => handleMarkAsPaid(bill)}
                         disabled={payingBillId === bill.id}
-                        className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                        className="px-3 py-1.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
                       >
                         {payingBillId === bill.id ? 'Saving...' : 'Mark Paid'}
                       </button>
@@ -227,11 +230,11 @@ function BillsContent() {
             onClick={() => setShowPaid(!showPaid)}
             className="flex items-center justify-between w-full text-left"
           >
-            <h2 className="text-lg font-bold text-gray-900">
+            <h2 className="text-lg font-bold text-gray-950">
               Paid Bills
               <span className="ml-2 text-sm font-normal text-gray-500">({paidBills.length})</span>
             </h2>
-            <span className="text-gray-400 text-xl">{showPaid ? '▲' : '▼'}</span>
+            <span className="text-gray-400 text-xl">{showPaid ? 'Up' : 'Down'}</span>
           </button>
 
           {showPaid && (
@@ -255,7 +258,7 @@ function BillsContent() {
                     <div className="flex flex-wrap items-center justify-between gap-3 sm:ml-4">
                       <p className="font-bold text-gray-500">{formatCurrency(bill.amount)}</p>
                       <span className="px-3 py-1.5 bg-green-100 text-green-700 text-sm rounded-lg font-medium">
-                        ✓ Paid
+                        Paid
                       </span>
                       <button
                         onClick={() => handleDeleteBill(bill)}
