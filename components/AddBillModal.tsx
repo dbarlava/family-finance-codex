@@ -29,16 +29,20 @@ export function AddBillModal({ onClose, onSubmit }: AddBillModalProps) {
     e.preventDefault()
     if (!name || !amount || !dueDate || parseFloat(amount) <= 0) return
     
-    setLoading(true)
-    await onSubmit({
-      name,
-      amount: parseFloat(amount),
-      due_date: dueDate,
-      category,
-      is_recurring: isRecurring,
-      recurrence_period: isRecurring ? recurrencePeriod : undefined,
-      notes: notes || undefined,
-    })
+    try {
+      setLoading(true)
+      await onSubmit({
+        name,
+        amount: parseFloat(amount),
+        due_date: dueDate,
+        category,
+        is_recurring: isRecurring,
+        recurrence_period: isRecurring ? recurrencePeriod : undefined,
+        notes: notes || undefined,
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

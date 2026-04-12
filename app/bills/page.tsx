@@ -5,8 +5,17 @@ import { Bill, Category } from '@/lib/types'
 import { AuthGuard } from '@/components/AuthGuard'
 import { Navbar } from '@/components/Navbar'
 import { AddBillModal } from '@/components/AddBillModal'
-import { format, addDays, addMonths, addYears } from 'date-fns'
+import { format } from 'date-fns'
 import type { RecurrencePeriod } from '@/lib/types'
+import {
+  addBill,
+  deleteBill,
+  formatCurrency,
+  formatDateOnly,
+  getCategoryColor,
+  isOverdue,
+  payBill,
+} from '@/lib/finance'
 
 export default function BillsPage() {
   return (
@@ -22,28 +31,9 @@ function BillsContent() {
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showPaid, setShowPaid] = useState(false)
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
-
-  const getCategoryColor = (category: string) => {
-    const colors: { [key: string]: string } = {
-      Housing: 'bg-purple-100 text-purple-800',
-      Utilities: 'bg-yellow-100 text-yellow-800',
-      Insurance: 'bg-green-100 text-green-800',
-      Subscriptions: 'bg-pink-100 text-pink-800',
-      Groceries: 'bg-orange-100 text-orange-800',
-      Transportation: 'bg-blue-100 text-blue-800',
-      Healthcare: 'bg-red-100 text-red-800',
-      Entertainment: 'bg-indigo-100 text-indigo-800',
-      Education: 'bg-cyan-100 text-cyan-800',
-      Savings: 'bg-emerald-100 text-emerald-800',
-      Other: 'bg-gray-100 text-gray-800',
-    }
-    return colors[category] || colors.Other
-  }
-
-  const isOverdue = (dueDate: string) => new Date(dueDate) < new Date()
+  const [error, setError] = useState('')
+  const [payingBillId, setPayingBillId] = useState<string | null>(null)
+  const [deletingBillId, setDeletingBillId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -52,16 +42,20 @@ function BillsContent() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const { data: balanceData } = await supabase.from('balance').select('*').single()
-      setBalance(balanceData?.amount || 0)
+      setError('')
+      const [balanceResult, billsResult] = await Promise.all([
+        supabase.from('balance').select('*').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('bills').select('*').order('due_date', { ascending: true }),
+      ])
 
-      const { data: billsData } = await supabase
-        .from('bills')
-        .select('*')
-        .order('due_date', { ascending: true })
-      setBills(billsData || [])
+      if (balanceResult.error) throw balanceResult.error
+      if (billsResult.error) throw billsResult.error
+
+      setBalance(balanceResult.data?.amount || 0)
+      setBills(billsResult.data || [])
     } catch (error) {
       console.error('Error fetching data:', error)
+      setError('Could not load bills. Try refreshing the page.')
     } finally {
       setLoading(false)
     }
@@ -76,13 +70,15 @@ function BillsContent() {
     recurrence_period?: RecurrencePeriod
     notes?: string
   }) => {
-    const { error } = await supabase.from('bills').insert({
-      ...billData,
-      is_paid: false,
-    })
-    if (!error) {
+    try {
+      setError('')
+      await addBill(billData)
       setShowAddModal(false)
       await fetchData()
+    } catch (error) {
+      console.error('Error adding bill:', error)
+      setError('Bill was not added. Check the details and try again.')
+      throw error
     }
   }
 
@@ -91,59 +87,15 @@ function BillsContent() {
     if (!confirmed) return
 
     try {
-      const newBalance = balance - bill.amount
-
-      // Get balance row id
-      const { data: balanceRow } = await supabase.from('balance').select('id').single()
-
-      if (!balanceRow) {
-        throw new Error('Balance record not found')
-      }
-
-      // Update balance
-      await supabase
-        .from('balance')
-        .update({ amount: newBalance, updated_at: new Date().toISOString() })
-        .eq('id', balanceRow.id)
-
-      // Mark bill as paid
-      await supabase
-        .from('bills')
-        .update({ is_paid: true, paid_date: new Date().toISOString() })
-        .eq('id', bill.id)
-
-      // Create transaction record
-      await supabase.from('transactions').insert({
-        type: 'payment',
-        amount: bill.amount,
-        description: bill.name,
-        category: bill.category,
-        bill_id: bill.id,
-      })
-
-      // If recurring, create next occurrence
-      if (bill.is_recurring && bill.recurrence_period) {
-        let nextDueDate = new Date(bill.due_date)
-        if (bill.recurrence_period === 'weekly') nextDueDate = addDays(nextDueDate, 7)
-        else if (bill.recurrence_period === 'monthly') nextDueDate = addMonths(nextDueDate, 1)
-        else if (bill.recurrence_period === 'yearly') nextDueDate = addYears(nextDueDate, 1)
-
-        await supabase.from('bills').insert({
-          name: bill.name,
-          amount: bill.amount,
-          due_date: format(nextDueDate, 'yyyy-MM-dd'),
-          category: bill.category,
-          is_recurring: true,
-          recurrence_period: bill.recurrence_period,
-          is_paid: false,
-          notes: bill.notes,
-        })
-      }
-
-      setBalance(newBalance)
+      setError('')
+      setPayingBillId(bill.id)
+      setBalance(await payBill(bill))
       await fetchData()
     } catch (error) {
       console.error('Error marking bill as paid:', error)
+      setError('Bill was not marked paid. Check that the database functions from the schema have been applied.')
+    } finally {
+      setPayingBillId(null)
     }
   }
 
@@ -151,8 +103,17 @@ function BillsContent() {
     const confirmed = confirm(`Delete "${bill.name}"? This cannot be undone.`)
     if (!confirmed) return
 
-    await supabase.from('bills').delete().eq('id', bill.id)
-    await fetchData()
+    try {
+      setError('')
+      setDeletingBillId(bill.id)
+      await deleteBill(bill.id)
+      await fetchData()
+    } catch (error) {
+      console.error('Error deleting bill:', error)
+      setError('Bill was not deleted. Try again.')
+    } finally {
+      setDeletingBillId(null)
+    }
   }
 
   const unpaidBills = bills.filter(b => !b.is_paid)
@@ -172,7 +133,7 @@ function BillsContent() {
       <Navbar />
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Bills</h1>
             <p className="text-gray-500 mt-0.5">
@@ -186,6 +147,12 @@ function BillsContent() {
             + Add Bill
           </button>
         </div>
+
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 mb-6">
+            {error}
+          </div>
+        )}
 
         {/* Unpaid Bills */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
@@ -204,7 +171,7 @@ function BillsContent() {
                 return (
                   <div
                     key={bill.id}
-                    className={`flex items-center justify-between p-4 rounded-lg border ${
+                    className={`flex flex-col gap-4 p-4 rounded-lg border sm:flex-row sm:items-center sm:justify-between ${
                       overdue ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
                     }`}
                   >
@@ -226,23 +193,25 @@ function BillsContent() {
                         )}
                       </div>
                       <p className={`text-sm mt-0.5 ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                        Due: {format(new Date(bill.due_date + 'T12:00:00'), 'MMM d, yyyy')}
+                        Due: {formatDateOnly(bill.due_date)}
                       </p>
                       {bill.notes && <p className="text-xs text-gray-400 mt-0.5">{bill.notes}</p>}
                     </div>
-                    <div className="flex items-center gap-3 ml-4 shrink-0">
+                    <div className="flex flex-wrap items-center justify-between gap-3 sm:ml-4 sm:shrink-0">
                       <p className="font-bold text-gray-900 text-lg">{formatCurrency(bill.amount)}</p>
                       <button
                         onClick={() => handleMarkAsPaid(bill)}
-                        className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                        disabled={payingBillId === bill.id}
+                        className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                       >
-                        Mark Paid
+                        {payingBillId === bill.id ? 'Saving...' : 'Mark Paid'}
                       </button>
                       <button
                         onClick={() => handleDeleteBill(bill)}
-                        className="px-3 py-1.5 bg-gray-200 text-gray-600 text-sm rounded-lg hover:bg-red-100 hover:text-red-600 transition-colors"
+                        disabled={deletingBillId === bill.id}
+                        className="px-3 py-1.5 bg-gray-200 text-gray-600 text-sm rounded-lg hover:bg-red-100 hover:text-red-600 transition-colors disabled:opacity-50"
                       >
-                        Delete
+                        {deletingBillId === bill.id ? 'Deleting...' : 'Delete'}
                       </button>
                     </div>
                   </div>
@@ -271,7 +240,7 @@ function BillsContent() {
                 <p className="text-gray-500 text-center py-6">No paid bills yet.</p>
               ) : (
                 paidBills.map(bill => (
-                  <div key={bill.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 opacity-70">
+                  <div key={bill.id} className="flex flex-col gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 opacity-70 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-gray-700 line-through">{bill.name}</p>
@@ -283,16 +252,17 @@ function BillsContent() {
                         Paid: {bill.paid_date ? format(new Date(bill.paid_date), 'MMM d, yyyy') : '—'}
                       </p>
                     </div>
-                    <div className="flex items-center gap-3 ml-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 sm:ml-4">
                       <p className="font-bold text-gray-500">{formatCurrency(bill.amount)}</p>
                       <span className="px-3 py-1.5 bg-green-100 text-green-700 text-sm rounded-lg font-medium">
                         ✓ Paid
                       </span>
                       <button
                         onClick={() => handleDeleteBill(bill)}
-                        className="px-3 py-1.5 bg-gray-200 text-gray-600 text-sm rounded-lg hover:bg-red-100 hover:text-red-600 transition-colors"
+                        disabled={deletingBillId === bill.id}
+                        className="px-3 py-1.5 bg-gray-200 text-gray-600 text-sm rounded-lg hover:bg-red-100 hover:text-red-600 transition-colors disabled:opacity-50"
                       >
-                        Delete
+                        {deletingBillId === bill.id ? 'Deleting...' : 'Delete'}
                       </button>
                     </div>
                   </div>

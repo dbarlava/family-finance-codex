@@ -16,7 +16,7 @@ export function Navbar() {
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-6xl mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 py-3">
           {/* Logo */}
           <div className="flex items-center gap-2">
             <span className="text-2xl">💰</span>
@@ -24,12 +24,12 @@ export function Navbar() {
           </div>
 
           {/* Nav links */}
-          <div className="flex gap-1">
+          <div className="order-3 flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto">
             {links.map(link => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-colors sm:px-4 ${
                   pathname === link.href
                     ? 'bg-blue-100 text-blue-700'
                     : 'text-gray-600 hover:bg-gray-100'
@@ -42,7 +42,7 @@ export function Navbar() {
 
           {/* User + sign out */}
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500 hidden sm:block">{user?.email}</span>
+            <span className="hidden max-w-48 truncate text-sm text-gray-500 md:block">{user?.email}</span>
             <button
               onClick={signOut}
               className="text-sm text-red-600 hover:text-red-700 font-medium"

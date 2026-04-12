@@ -6,6 +6,7 @@ import { AuthGuard } from '@/components/AuthGuard'
 import { Navbar } from '@/components/Navbar'
 import { DepositModal } from '@/components/DepositModal'
 import { format } from 'date-fns'
+import { formatCurrency, getCategoryColor, recordDeposit } from '@/lib/finance'
 
 export default function TransactionsPage() {
   return (
@@ -21,26 +22,7 @@ function TransactionsContent() {
   const [loading, setLoading] = useState(true)
   const [showDeposit, setShowDeposit] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<Category | 'All'>('All')
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
-
-  const getCategoryColor = (category: string) => {
-    const colors: { [key: string]: string } = {
-      Housing: 'bg-purple-100 text-purple-800',
-      Utilities: 'bg-yellow-100 text-yellow-800',
-      Insurance: 'bg-green-100 text-green-800',
-      Subscriptions: 'bg-pink-100 text-pink-800',
-      Groceries: 'bg-orange-100 text-orange-800',
-      Transportation: 'bg-blue-100 text-blue-800',
-      Healthcare: 'bg-red-100 text-red-800',
-      Entertainment: 'bg-indigo-100 text-indigo-800',
-      Education: 'bg-cyan-100 text-cyan-800',
-      Savings: 'bg-emerald-100 text-emerald-800',
-      Other: 'bg-gray-100 text-gray-800',
-    }
-    return colors[category] || colors.Other
-  }
+  const [error, setError] = useState('')
 
   useEffect(() => {
     fetchData()
@@ -49,16 +31,20 @@ function TransactionsContent() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const { data: balanceData } = await supabase.from('balance').select('*').single()
-      setBalance(balanceData?.amount || 0)
+      setError('')
+      const [balanceResult, txResult] = await Promise.all([
+        supabase.from('balance').select('*').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('transactions').select('*').order('created_at', { ascending: false }),
+      ])
 
-      const { data: txData } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false })
-      setTransactions(txData || [])
+      if (balanceResult.error) throw balanceResult.error
+      if (txResult.error) throw txResult.error
+
+      setBalance(balanceResult.data?.amount || 0)
+      setTransactions(txResult.data || [])
     } catch (error) {
       console.error('Error fetching transactions:', error)
+      setError('Could not load transactions. Try refreshing the page.')
     } finally {
       setLoading(false)
     }
@@ -66,28 +52,14 @@ function TransactionsContent() {
 
   const handleDeposit = async (amount: number, description: string) => {
     try {
-      const { data: balanceRow } = await supabase.from('balance').select('id').single()
-      if (!balanceRow) {
-        throw new Error('Balance record not found')
-      }
-
-      await supabase
-        .from('balance')
-        .update({ amount: balance + amount, updated_at: new Date().toISOString() })
-        .eq('id', balanceRow!.id)
-
-      await supabase.from('transactions').insert({
-        type: 'deposit',
-        amount,
-        description,
-        category: 'Other',
-      })
-
-      setBalance(balance + amount)
+      setError('')
+      setBalance(await recordDeposit(amount, description))
       setShowDeposit(false)
       await fetchData()
     } catch (error) {
       console.error('Error adding deposit:', error)
+      setError('Deposit was not saved. Check that the database functions from the schema have been applied.')
+      throw error
     }
   }
 
@@ -130,8 +102,14 @@ function TransactionsContent() {
           </button>
         </div>
 
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 mb-6">
+            {error}
+          </div>
+        )}
+
         {/* This Month Summary */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-3">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
             <p className="text-sm text-gray-500 mb-1">Current Balance</p>
             <p className={`text-2xl font-bold ${balance < 0 ? 'text-red-600' : 'text-blue-600'}`}>
@@ -151,7 +129,7 @@ function TransactionsContent() {
         {/* Transaction List */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           {/* Filter */}
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex flex-col gap-3 mb-5 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-bold text-gray-900">History</h2>
             <select
               value={categoryFilter}

@@ -14,8 +14,12 @@ export function DepositModal({ onClose, onSubmit }: DepositModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!amount || parseFloat(amount) <= 0) return
-    setLoading(true)
-    await onSubmit(parseFloat(amount), description || 'Deposit')
+    try {
+      setLoading(true)
+      await onSubmit(parseFloat(amount), description || 'Deposit')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

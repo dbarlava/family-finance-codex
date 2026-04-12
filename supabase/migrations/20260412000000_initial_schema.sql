@@ -1,10 +1,5 @@
--- ============================================================
--- Family Finance App — Supabase Database Schema
--- Run this entire file in: Supabase Dashboard > SQL Editor
--- ============================================================
+-- Family Finance baseline schema and atomic money operations.
 
--- 1. BALANCE TABLE
--- Stores a single row representing the family's bank balance
 CREATE TABLE IF NOT EXISTS balance (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   singleton  BOOLEAN NOT NULL DEFAULT TRUE CHECK (singleton),
@@ -25,13 +20,9 @@ WHERE id NOT IN (
 
 CREATE UNIQUE INDEX IF NOT EXISTS balance_singleton_idx ON balance (singleton);
 
--- Insert the one balance row (you'll update the amount in the app or via SQL)
 INSERT INTO balance (singleton, amount) VALUES (TRUE, 0)
 ON CONFLICT (singleton) DO NOTHING;
 
-
--- 2. BILLS TABLE
--- Each bill has a name, amount, due date, category, and optional recurrence
 CREATE TABLE IF NOT EXISTS bills (
   id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name               TEXT NOT NULL,
@@ -46,9 +37,6 @@ CREATE TABLE IF NOT EXISTS bills (
   created_at         TIMESTAMPTZ DEFAULT NOW()
 );
 
-
--- 3. TRANSACTIONS TABLE
--- Records every deposit and bill payment
 CREATE TABLE IF NOT EXISTS transactions (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   type        TEXT NOT NULL CHECK (type IN ('deposit', 'payment')),
@@ -59,40 +47,52 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-
--- ============================================================
--- ROW LEVEL SECURITY (RLS)
--- Makes sure only logged-in family members can see/edit data
--- ============================================================
-
 ALTER TABLE balance      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bills        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 
--- Allow any authenticated (logged-in) user full access to all tables
-CREATE POLICY "Authenticated users can manage balance"
-  ON balance FOR ALL
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'balance'
+      AND policyname = 'Authenticated users can manage balance'
+  ) THEN
+    CREATE POLICY "Authenticated users can manage balance"
+      ON balance FOR ALL
+      TO authenticated
+      USING (true)
+      WITH CHECK (true);
+  END IF;
 
-CREATE POLICY "Authenticated users can manage bills"
-  ON bills FOR ALL
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'bills'
+      AND policyname = 'Authenticated users can manage bills'
+  ) THEN
+    CREATE POLICY "Authenticated users can manage bills"
+      ON bills FOR ALL
+      TO authenticated
+      USING (true)
+      WITH CHECK (true);
+  END IF;
 
-CREATE POLICY "Authenticated users can manage transactions"
-  ON transactions FOR ALL
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
-
-
--- ============================================================
--- ATOMIC MONEY OPERATIONS
--- Keep balance, bills, transactions, and recurring bills in sync.
--- ============================================================
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'transactions'
+      AND policyname = 'Authenticated users can manage transactions'
+  ) THEN
+    CREATE POLICY "Authenticated users can manage transactions"
+      ON transactions FOR ALL
+      TO authenticated
+      USING (true)
+      WITH CHECK (true);
+  END IF;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION record_deposit(
   p_amount NUMERIC,
@@ -219,12 +219,3 @@ BEGIN
   RETURN v_new_balance;
 END;
 $$;
-
-
--- ============================================================
--- OPTIONAL: Set your starting balance
--- Uncomment and edit the line below to set an initial balance
--- (you can also do this from the app's dashboard)
--- ============================================================
-
--- UPDATE balance SET amount = 5000.00 WHERE id = (SELECT id FROM balance LIMIT 1);

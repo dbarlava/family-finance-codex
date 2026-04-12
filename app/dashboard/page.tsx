@@ -5,7 +5,16 @@ import { Bill, Transaction } from '@/lib/types'
 import { AuthGuard } from '@/components/AuthGuard'
 import { Navbar } from '@/components/Navbar'
 import { BalanceCard } from '@/components/BalanceCard'
-import { format, addDays, addMonths, addYears } from 'date-fns'
+import { format } from 'date-fns'
+import {
+  formatCurrency,
+  formatDateOnly,
+  getCategoryColor,
+  isDueWithinDays,
+  isOverdue,
+  payBill,
+  recordDeposit,
+} from '@/lib/finance'
 
 export default function DashboardPage() {
   return (
@@ -20,26 +29,8 @@ function DashboardContent() {
   const [upcomingBills, setUpcomingBills] = useState<Bill[]>([])
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
-
-  const getCategoryColor = (category: string) => {
-    const colors: { [key: string]: string } = {
-      Housing: 'bg-purple-100 text-purple-800',
-      Utilities: 'bg-yellow-100 text-yellow-800',
-      Insurance: 'bg-green-100 text-green-800',
-      Subscriptions: 'bg-pink-100 text-pink-800',
-      Groceries: 'bg-orange-100 text-orange-800',
-      Transportation: 'bg-blue-100 text-blue-800',
-      Healthcare: 'bg-red-100 text-red-800',
-      Entertainment: 'bg-indigo-100 text-indigo-800',
-      Education: 'bg-cyan-100 text-cyan-800',
-      Savings: 'bg-emerald-100 text-emerald-800',
-      Other: 'bg-gray-100 text-gray-800',
-    }
-    return colors[category] || colors.Other
-  }
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+  const [error, setError] = useState('')
+  const [payingBillId, setPayingBillId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -48,42 +39,28 @@ function DashboardContent() {
   const fetchData = async () => {
     try {
       setLoading(true)
+      setError('')
 
-      // Fetch balance
-      const { data: balanceData } = await supabase
-        .from('balance')
-        .select('*')
-        .single()
+      const [balanceResult, billsResult, transactionsResult] = await Promise.all([
+        supabase.from('balance').select('*').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('bills').select('*').order('due_date', { ascending: true }),
+        supabase.from('transactions').select('*').order('created_at', { ascending: false }).limit(10),
+      ])
 
-      setBalance(balanceData?.amount || 0)
+      if (balanceResult.error) throw balanceResult.error
+      if (billsResult.error) throw billsResult.error
+      if (transactionsResult.error) throw transactionsResult.error
 
-      // Fetch all bills
-      const { data: billsData } = await supabase
-        .from('bills')
-        .select('*')
-        .order('due_date', { ascending: true })
+      setBalance(balanceResult.data?.amount || 0)
 
-      // Filter unpaid bills due in next 30 days
-      const now = new Date()
-      const thirtyDaysFromNow = addDays(now, 30)
-      const upcoming = (billsData || []).filter(
-        bill =>
-          !bill.is_paid &&
-          new Date(bill.due_date) <= thirtyDaysFromNow &&
-          new Date(bill.due_date) >= now
+      const upcoming = (billsResult.data || []).filter(
+        bill => !bill.is_paid && isDueWithinDays(bill.due_date, 30)
       )
       setUpcomingBills(upcoming)
-
-      // Fetch recent transactions
-      const { data: transactionsData } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10)
-
-      setRecentTransactions(transactionsData || [])
+      setRecentTransactions(transactionsResult.data || [])
     } catch (error) {
       console.error('Error fetching data:', error)
+      setError('Could not load the latest finance data. Try refreshing the page.')
     } finally {
       setLoading(false)
     }
@@ -91,24 +68,13 @@ function DashboardContent() {
 
   const handleDeposit = async (amount: number, description: string) => {
     try {
-      // Update balance
-      await supabase
-        .from('balance')
-        .update({ amount: balance + amount, updated_at: new Date().toISOString() })
-        .eq('id', (await supabase.from('balance').select('id').single()).data?.id)
-
-      // Insert transaction
-      await supabase.from('transactions').insert({
-        type: 'deposit',
-        amount,
-        description,
-        category: 'Other',
-      })
-
-      setBalance(balance + amount)
+      setError('')
+      setBalance(await recordDeposit(amount, description))
       await fetchData()
     } catch (error) {
       console.error('Error adding deposit:', error)
+      setError('Deposit was not saved. Check that the database functions from the schema have been applied.')
+      throw error
     }
   }
 
@@ -117,70 +83,21 @@ function DashboardContent() {
     if (!confirmed) return
 
     try {
-      const newBalance = balance - bill.amount
-
-      // Update balance
-      const { data: balanceData } = await supabase
-        .from('balance')
-        .select('id')
-        .single()
-
-      if (!balanceData) {
-        throw new Error('Balance record not found')
-      }
-
-      await supabase
-        .from('balance')
-        .update({ amount: newBalance, updated_at: new Date().toISOString() })
-        .eq('id', balanceData.id)
-
-      // Mark bill as paid
-      await supabase
-        .from('bills')
-        .update({
-          is_paid: true,
-          paid_date: new Date().toISOString(),
-        })
-        .eq('id', bill.id)
-
-      // Insert transaction
-      await supabase.from('transactions').insert({
-        type: 'payment',
-        amount: bill.amount,
-        description: bill.name,
-        category: bill.category,
-        bill_id: bill.id,
-      })
-
-      // If recurring, create next occurrence
-      if (bill.is_recurring && bill.recurrence_period) {
-        let nextDueDate = new Date(bill.due_date)
-        if (bill.recurrence_period === 'weekly') {
-          nextDueDate = addDays(nextDueDate, 7)
-        } else if (bill.recurrence_period === 'monthly') {
-          nextDueDate = addMonths(nextDueDate, 1)
-        } else if (bill.recurrence_period === 'yearly') {
-          nextDueDate = addYears(nextDueDate, 1)
-        }
-
-        await supabase.from('bills').insert({
-          name: bill.name,
-          amount: bill.amount,
-          due_date: format(nextDueDate, 'yyyy-MM-dd'),
-          category: bill.category,
-          is_recurring: true,
-          recurrence_period: bill.recurrence_period,
-          is_paid: false,
-          notes: bill.notes,
-        })
-      }
-
-      setBalance(newBalance)
+      setError('')
+      setPayingBillId(bill.id)
+      setBalance(await payBill(bill))
       await fetchData()
     } catch (error) {
       console.error('Error marking bill as paid:', error)
+      setError('Bill was not marked paid. Check that the database functions from the schema have been applied.')
+    } finally {
+      setPayingBillId(null)
     }
   }
+
+  const dueNext30 = upcomingBills.reduce((sum, bill) => sum + bill.amount, 0)
+  const projectedBalance = balance - dueNext30
+  const overdueCount = upcomingBills.filter(bill => isOverdue(bill.due_date)).length
 
   if (loading) {
     return (
@@ -198,39 +115,79 @@ function DashboardContent() {
           {/* Balance Card */}
           <BalanceCard balance={balance} onDeposit={handleDeposit} />
 
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <p className="text-sm text-gray-500 mb-1">Due next 30 days</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(dueNext30)}</p>
+              <p className="text-sm text-gray-500 mt-1">{upcomingBills.length} unpaid bills</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <p className="text-sm text-gray-500 mb-1">Projected balance</p>
+              <p className={`text-2xl font-bold ${projectedBalance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {formatCurrency(projectedBalance)}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">After known bills due soon</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <p className="text-sm text-gray-500 mb-1">Needs attention</p>
+              <p className={`text-2xl font-bold ${overdueCount > 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                {overdueCount}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">Overdue bills</p>
+            </div>
+          </div>
+
           {/* Upcoming Bills */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Upcoming Bills (Next 30 Days)</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Bills Due Now and Next 30 Days</h2>
             {upcomingBills.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No bills due in the next 30 days</p>
+              <p className="text-gray-500 text-center py-8">No bills due right now or in the next 30 days</p>
             ) : (
               <div className="space-y-3">
-                {upcomingBills.map(bill => (
-                  <div key={bill.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                {upcomingBills.map(bill => {
+                  const overdue = isOverdue(bill.due_date)
+
+                  return (
+                  <div key={bill.id} className={`flex flex-col gap-4 p-4 rounded-lg border sm:flex-row sm:items-center sm:justify-between ${
+                    overdue ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
+                  }`}>
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <div>
                           <p className="font-semibold text-gray-900">{bill.name}</p>
-                          <p className="text-sm text-gray-500">
-                            Due: {format(new Date(bill.due_date), 'MMM d, yyyy')}
+                          <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                            Due: {formatDateOnly(bill.due_date)}
                           </p>
                         </div>
+                        {overdue && (
+                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                            Overdue
+                          </span>
+                        )}
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(bill.category)}`}>
                           {bill.category}
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 ml-4">
+                    <div className="flex items-center justify-between gap-4 sm:ml-4">
                       <p className="font-bold text-gray-900">{formatCurrency(bill.amount)}</p>
                       <button
                         onClick={() => handleMarkAsPaid(bill)}
-                        className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                        disabled={payingBillId === bill.id}
+                        className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                       >
-                        Mark Paid
+                        {payingBillId === bill.id ? 'Saving...' : 'Mark Paid'}
                       </button>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
