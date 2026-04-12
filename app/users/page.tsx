@@ -3,7 +3,10 @@ import { useEffect, useState } from 'react'
 import { AuthGuard } from '@/components/AuthGuard'
 import { SiteRibbon } from '@/components/SiteRibbon'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/app/providers'
 import { format } from 'date-fns'
+
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
 
 type ManagedUser = {
   id: string
@@ -22,6 +25,9 @@ export default function UsersPage() {
 }
 
 function UsersContent() {
+  const { user } = useAuth()
+  const isAdmin = !!ADMIN_EMAIL && user?.email === ADMIN_EMAIL
+
   const [users, setUsers] = useState<ManagedUser[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -111,6 +117,22 @@ function UsersContent() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <SiteRibbon />
+        <main className="mx-auto flex max-w-6xl flex-col items-center justify-center px-4 py-32 text-center">
+          <p className="text-4xl">🔒</p>
+          <h1 className="mt-4 text-xl font-bold text-gray-950">Access Restricted</h1>
+          <p className="mt-2 text-gray-500">This page is only available to the family admin.</p>
+          <a href="/dashboard" className="mt-6 rounded-lg bg-gray-950 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-700">
+            Go to Dashboard
+          </a>
+        </main>
+      </div>
+    )
   }
 
   return (

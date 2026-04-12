@@ -1,15 +1,20 @@
 'use client'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/app/providers'
+
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
 
 export function SiteRibbon() {
   const pathname = usePathname()
+  const { user } = useAuth()
+  const isAdmin = !!ADMIN_EMAIL && user?.email === ADMIN_EMAIL
 
   const links = [
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/bills', label: 'Bills' },
     { href: '/transactions', label: 'Transactions' },
-    { href: '/users', label: 'Users' },
+    ...(isAdmin ? [{ href: '/users', label: 'Users' }] : []),
   ]
 
   const handleSignOut = async () => {
@@ -39,7 +44,7 @@ export function SiteRibbon() {
           </button>
         </div>
 
-        <nav className="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 sm:grid-cols-4">
+        <nav className={`grid gap-2 rounded-lg bg-gray-100 p-1 ${isAdmin ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
           {links.map(link => {
             const active = pathname === link.href
             return (

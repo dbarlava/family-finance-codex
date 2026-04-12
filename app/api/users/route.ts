@@ -110,7 +110,7 @@ function getAppUrl(request: Request) {
   return new URL(request.url).origin
 }
 
-async function requireUser(request: Request) {
+async function requireAdmin(request: Request) {
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
@@ -121,11 +121,16 @@ async function requireUser(request: Request) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
 
+  const adminEmail = process.env.ADMIN_EMAIL
+  if (!adminEmail || data.user.email !== adminEmail) {
+    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  }
+
   return { user: data.user }
 }
 
 export async function GET(request: Request) {
-  const auth = await requireUser(request)
+  const auth = await requireAdmin(request)
   if ('error' in auth) return auth.error
 
   try {
@@ -155,7 +160,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireUser(request)
+  const auth = await requireAdmin(request)
   if ('error' in auth) return auth.error
 
   try {
