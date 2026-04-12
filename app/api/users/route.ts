@@ -62,7 +62,7 @@ async function sendInviteEmail(to: string, inviteLink: string, appUrl: string) {
     body: JSON.stringify({
       from,
       to,
-      subject: 'You've been invited to Family Finance',
+      subject: "You've been invited to Family Finance",
       html,
       text: `You've been invited to join your family's Finance dashboard.\n\nClick the link below to accept your invite and set up your account:\n\n${inviteLink}\n\nThis link expires in 24 hours.`,
     }),
