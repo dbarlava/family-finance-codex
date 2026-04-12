@@ -238,3 +238,32 @@ export async function POST(request: Request) {
     )
   }
 }
+
+export async function DELETE(request: Request) {
+  const auth = await requireAdmin(request)
+  if ('error' in auth) return auth.error
+
+  try {
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('id')
+
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
+    }
+
+    if (userId === auth.user.id) {
+      return NextResponse.json({ error: 'You cannot delete your own admin account' }, { status: 400 })
+    }
+
+    const { error } = await getAdminClient().auth.admin.deleteUser(userId)
+    if (error) throw error
+
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error('Could not delete user:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Could not delete user' },
+      { status: 500 }
+    )
+  }
+}

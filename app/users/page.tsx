@@ -35,6 +35,7 @@ function UsersContent() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [inviteLink, setInviteLink] = useState('')
+  const [deletingUserId, setDeletingUserId] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
@@ -116,6 +117,42 @@ function UsersContent() {
       setError(error instanceof Error ? error.message : 'Could not save user')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDeleteUser = async (managedUser: ManagedUser) => {
+    if (managedUser.id === user?.id) {
+      setError('You cannot delete your own admin account.')
+      return
+    }
+
+    const label = managedUser.email || 'this user'
+    const confirmed = window.confirm(`Delete ${label}? They will no longer be able to sign in.`)
+    if (!confirmed) return
+
+    try {
+      setDeletingUserId(managedUser.id)
+      setError('')
+      setNotice('')
+      const token = await getToken()
+      if (!token) throw new Error('You must be signed in')
+
+      const response = await fetch(`/api/users?id=${encodeURIComponent(managedUser.id)}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+
+      if (!response.ok) throw new Error(data.error || 'Could not delete user')
+
+      setNotice(`Deleted ${label}.`)
+      await fetchUsers()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not delete user')
+    } finally {
+      setDeletingUserId('')
     }
   }
 
@@ -260,26 +297,36 @@ function UsersContent() {
               <p className="py-10 text-center text-gray-500">No users found.</p>
             ) : (
               <div className="space-y-3">
-                {users.map(user => (
-                  <div key={user.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                {users.map(managedUser => (
+                  <div key={managedUser.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="font-semibold text-gray-950">{user.email || 'No email'}</p>
+                        <p className="font-semibold text-gray-950">{managedUser.email || 'No email'}</p>
                         <p className="text-sm text-gray-500">
-                          Created {format(new Date(user.created_at), 'MMM d, yyyy')}
+                          Created {format(new Date(managedUser.created_at), 'MMM d, yyyy')}
                         </p>
                       </div>
-                      <span className={`w-fit rounded-full px-3 py-1 text-xs font-medium ${
-                        user.email_confirmed_at
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {user.email_confirmed_at ? 'Confirmed' : 'Pending'}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`w-fit rounded-full px-3 py-1 text-xs font-medium ${
+                          managedUser.email_confirmed_at
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {managedUser.email_confirmed_at ? 'Confirmed' : 'Pending'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUser(managedUser)}
+                          disabled={deletingUserId === managedUser.id || managedUser.id === user?.id}
+                          className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {deletingUserId === managedUser.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
                     </div>
-                    {user.last_sign_in_at && (
+                    {managedUser.last_sign_in_at && (
                       <p className="mt-2 text-xs text-gray-500">
-                        Last sign in {format(new Date(user.last_sign_in_at), 'MMM d, yyyy h:mm a')}
+                        Last sign in {format(new Date(managedUser.last_sign_in_at), 'MMM d, yyyy h:mm a')}
                       </p>
                     )}
                   </div>
