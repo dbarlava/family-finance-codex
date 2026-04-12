@@ -22,6 +22,39 @@ function getAdminClient() {
   })
 }
 
+function getAnonClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !anonKey) {
+    throw new Error('Missing Supabase auth environment variables')
+  }
+
+  return createClient(supabaseUrl, anonKey, {
+    auth: {
+      persistSession: false,
+    },
+  })
+}
+
+async function isAdminRequest(request: Request) {
+  const authHeader = request.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET
+
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    return true
+  }
+
+  const token = authHeader?.replace('Bearer ', '')
+  if (!token) return false
+
+  const { data, error } = await getAnonClient().auth.getUser(token)
+  if (error || !data.user) return false
+
+  const adminEmail = process.env.ADMIN_EMAIL
+  return !!adminEmail && data.user.email === adminEmail
+}
+
 async function sendReminderEmail(bills: Bill[], to: string) {
   const gmailUser = process.env.GMAIL_USER
   const gmailAppPassword = process.env.GMAIL_APP_PASSWORD
@@ -93,10 +126,7 @@ function getBillPreview(bills: Bill[]) {
 }
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!(await isAdminRequest(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

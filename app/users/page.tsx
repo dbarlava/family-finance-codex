@@ -16,6 +16,14 @@ type ManagedUser = {
   email_confirmed_at?: string
 }
 
+type ReminderPreviewBill = {
+  id: string
+  name: string
+  amount: number
+  due_date: string
+  status: string
+}
+
 export default function UsersPage() {
   return (
     <AuthGuard>
@@ -36,6 +44,8 @@ function UsersContent() {
   const [password, setPassword] = useState('')
   const [inviteLink, setInviteLink] = useState('')
   const [deletingUserId, setDeletingUserId] = useState('')
+  const [testingReminders, setTestingReminders] = useState(false)
+  const [reminderBills, setReminderBills] = useState<ReminderPreviewBill[]>([])
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
@@ -156,6 +166,36 @@ function UsersContent() {
     }
   }
 
+  const testReminders = async (sendEmail: boolean) => {
+    try {
+      setTestingReminders(true)
+      setError('')
+      setNotice('')
+      const token = await getToken()
+      if (!token) throw new Error('You must be signed in')
+
+      const response = await fetch(`/api/reminders?${sendEmail ? 'force=1' : 'dryRun=1'}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+
+      if (!response.ok) throw new Error(data.error || 'Could not test reminders')
+
+      setReminderBills(data.bills || [])
+      setNotice(
+        sendEmail
+          ? `Reminder test sent for ${data.count || 0} bill${data.count === 1 ? '' : 's'}.`
+          : `Reminder preview found ${data.count || 0} bill${data.count === 1 ? '' : 's'}.`
+      )
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not test reminders')
+    } finally {
+      setTestingReminders(false)
+    }
+  }
+
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -214,7 +254,7 @@ function UsersContent() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,420px)_1fr]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-bold text-gray-950">Add User</h2>
             <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
@@ -280,6 +320,45 @@ function UsersContent() {
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-bold text-gray-950">Reminder Test</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Check unpaid bills that are overdue or due in the next 7 days.
+            </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => testReminders(false)}
+                disabled={testingReminders}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => testReminders(true)}
+                disabled={testingReminders}
+                className="rounded-lg bg-gray-950 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {testingReminders ? 'Testing...' : 'Send Test Email'}
+              </button>
+            </div>
+
+            {reminderBills.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {reminderBills.map(bill => (
+                  <div key={bill.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-medium text-gray-950">{bill.name}</span>
+                      <span className="text-gray-500">{bill.status}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">Due {format(new Date(`${bill.due_date}T12:00:00`), 'MMM d, yyyy')}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm lg:col-span-2">
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-lg font-bold text-gray-950">Current Users</h2>
               <button
