@@ -41,12 +41,6 @@ export default function AcceptInvitePage() {
     }
 
     const verifyInvite = async () => {
-      const { data: { session: existingSession } } = await supabase.auth.getSession()
-      if (existingSession) {
-        showSetPassword()
-        return
-      }
-
       const url = new URL(window.location.href)
       const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''))
       const accessToken = hashParams.get('access_token')
@@ -72,15 +66,16 @@ export default function AcceptInvitePage() {
       if (tokenHash && isInviteLinkType(type)) {
         const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
         if (error) {
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session) {
-            showSetPassword()
-          } else {
-            showExpired()
-          }
+          showExpired()
         } else {
           showSetPassword()
         }
+        return
+      }
+
+      const { data: { session: existingSession } } = await supabase.auth.getSession()
+      if (existingSession) {
+        showSetPassword()
         return
       }
 
