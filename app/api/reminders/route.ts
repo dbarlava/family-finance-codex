@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
-import { addDays, format } from 'date-fns'
+import { addDays, differenceInCalendarDays, format } from 'date-fns'
 import { createClient } from '@supabase/supabase-js'
-import { formatCurrency, formatDateOnly } from '@/lib/finance'
+import nodemailer from 'nodemailer'
+import { formatCurrency, formatDateOnly, parseDateOnly } from '@/lib/finance'
 import type { Bill } from '@/lib/types'
 
-const reminderWindowDays = 3
+const reminderWindowDays = 7
 
 function getAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -22,40 +23,73 @@ function getAdminClient() {
 }
 
 async function sendReminderEmail(bills: Bill[], to: string) {
-  const resendApiKey = process.env.RESEND_API_KEY
-  const from = process.env.REMINDER_FROM_EMAIL
+  const gmailUser = process.env.GMAIL_USER
+  const gmailAppPassword = process.env.GMAIL_APP_PASSWORD
 
-  if (!resendApiKey || !from) {
-    throw new Error('Missing Resend reminder environment variables')
+  if (!gmailUser || !gmailAppPassword) {
+    throw new Error('Missing Gmail reminder environment variables')
   }
 
-  const lines = bills.map(bill =>
-    `${bill.name}: ${formatCurrency(bill.amount)} due ${formatDateOnly(bill.due_date)}`
-  )
-
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to,
-      subject: `Family Finance: ${bills.length} bill${bills.length === 1 ? '' : 's'} due soon`,
-      text: [
-        'Bills due soon:',
-        '',
-        ...lines,
-        '',
-        'Weekend due dates are moved to the Friday before.',
-      ].join('\n'),
-    }),
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const overdueCount = bills.filter(bill => getDaysUntilDue(bill.due_date, today) < 0).length
+  const dueTodayCount = bills.filter(bill => getDaysUntilDue(bill.due_date, today) === 0).length
+  const lines = bills.map(bill => {
+    const daysUntilDue = getDaysUntilDue(bill.due_date, today)
+    return `${getDueLabel(daysUntilDue)} — ${bill.name}: ${formatCurrency(bill.amount)} due ${formatDateOnly(bill.due_date)}`
   })
 
-  if (!response.ok) {
-    throw new Error(`Resend failed with ${response.status}: ${await response.text()}`)
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: gmailUser, pass: gmailAppPassword },
+  })
+
+  await transporter.sendMail({
+    from: `"Family Finance" <${gmailUser}>`,
+    to,
+    subject: getReminderSubject(bills.length, overdueCount, dueTodayCount),
+    text: [
+      `Bills overdue or due in the next ${reminderWindowDays} days:`,
+      '',
+      ...lines,
+      '',
+      'Weekend due dates are moved to the Friday before.',
+    ].join('\n'),
+  })
+}
+
+function getDaysUntilDue(dueDate: string, today = new Date()) {
+  return differenceInCalendarDays(parseDateOnly(dueDate), today)
+}
+
+function getDueLabel(daysUntilDue: number) {
+  if (daysUntilDue < 0) return `${Math.abs(daysUntilDue)} day${Math.abs(daysUntilDue) === 1 ? '' : 's'} overdue`
+  if (daysUntilDue === 0) return 'Due today'
+  return `Due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}`
+}
+
+function getReminderSubject(count: number, overdueCount: number, dueTodayCount: number) {
+  if (overdueCount > 0) {
+    return `Family Finance: ${overdueCount} overdue bill${overdueCount === 1 ? '' : 's'}`
   }
+
+  if (dueTodayCount > 0) {
+    return `Family Finance: ${dueTodayCount} bill${dueTodayCount === 1 ? '' : 's'} due today`
+  }
+
+  return `Family Finance: ${count} bill${count === 1 ? '' : 's'} due this week`
+}
+
+function getBillPreview(bills: Bill[]) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return bills.map(bill => ({
+    id: bill.id,
+    name: bill.name,
+    amount: bill.amount,
+    due_date: bill.due_date,
+    status: getDueLabel(getDaysUntilDue(bill.due_date, today)),
+  }))
 }
 
 export async function GET(request: Request) {
@@ -69,6 +103,9 @@ export async function GET(request: Request) {
   try {
     const reminderTo = process.env.REMINDER_TO_EMAIL
     if (!reminderTo) throw new Error('Missing REMINDER_TO_EMAIL')
+    const url = new URL(request.url)
+    const dryRun = url.searchParams.get('dryRun') === '1' || url.searchParams.get('dryRun') === 'true'
+    const force = url.searchParams.get('force') === '1' || url.searchParams.get('force') === 'true'
 
     const supabase = getAdminClient()
     const today = new Date()
@@ -100,12 +137,21 @@ export async function GET(request: Request) {
     const alreadySent = new Set(
       (existingLogs || []).map(log => `${log.bill_id}:${log.due_date}`)
     )
-    const billsToSend = candidates.filter(
-      bill => !alreadySent.has(`${bill.id}:${bill.due_date}`)
-    )
+    const billsToSend = force
+      ? candidates
+      : candidates.filter(bill => !alreadySent.has(`${bill.id}:${bill.due_date}`))
 
     if (billsToSend.length === 0) {
-      return NextResponse.json({ sent: false, count: 0 })
+      return NextResponse.json({ sent: false, count: 0, dryRun, bills: [] })
+    }
+
+    if (dryRun) {
+      return NextResponse.json({
+        sent: false,
+        dryRun: true,
+        count: billsToSend.length,
+        bills: getBillPreview(billsToSend),
+      })
     }
 
     await sendReminderEmail(billsToSend, reminderTo)
@@ -120,7 +166,11 @@ export async function GET(request: Request) {
 
     if (insertError) throw insertError
 
-    return NextResponse.json({ sent: true, count: billsToSend.length })
+    return NextResponse.json({
+      sent: true,
+      count: billsToSend.length,
+      bills: getBillPreview(billsToSend),
+    })
   } catch (error) {
     console.error('Reminder job failed:', error)
     return NextResponse.json(
