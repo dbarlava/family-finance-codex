@@ -1,5 +1,4 @@
 'use client'
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/app/providers'
 
@@ -39,19 +38,19 @@ export function Navbar() {
             </button>
           </div>
         </div>
-        <div className="flex gap-1 overflow-x-auto border-t border-gray-100 py-2">
+        <div className="grid grid-cols-3 gap-2 border-t border-gray-100 py-2">
           {links.map(link => (
-            <Link
+            <a
               key={link.href}
               href={link.href}
-              className={`shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-colors sm:px-4 ${
+              className={`px-3 py-2 text-center rounded-lg text-sm font-medium transition-colors sm:px-4 ${
                 pathname === link.href
                   ? 'bg-gray-900 text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950'
+                  : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 hover:text-gray-950'
               }`}
             >
               {link.label}
-            </Link>
+            </a>
           ))}
         </div>
       </div>
