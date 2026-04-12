@@ -1,10 +1,13 @@
 'use client'
 import { usePathname } from 'next/navigation'
-import { useAuth } from '@/app/providers'
 
-export function Navbar() {
+interface NavbarProps {
+  userEmail?: string
+  onSignOut: () => void
+}
+
+export function Navbar({ userEmail, onSignOut }: NavbarProps) {
   const pathname = usePathname()
-  const { user, signOut } = useAuth()
 
   const links = [
     { href: '/dashboard', label: 'Dashboard' },
@@ -29,9 +32,9 @@ export function Navbar() {
 
           {/* User + sign out */}
           <div className="flex items-center gap-3">
-            <span className="hidden max-w-48 truncate text-sm text-gray-500 md:block">{user?.email}</span>
+            <span className="hidden max-w-48 truncate text-sm text-gray-500 md:block">{userEmail}</span>
             <button
-              onClick={signOut}
+              onClick={onSignOut}
               className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50"
             >
               Sign Out

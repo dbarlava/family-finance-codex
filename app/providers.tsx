@@ -58,7 +58,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ user, loading, signOut }}>
-      {showNavbar && <Navbar />}
+      {showNavbar && <Navbar userEmail={user?.email} onSignOut={signOut} />}
       {children}
     </AuthContext.Provider>
   )
