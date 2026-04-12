@@ -27,7 +27,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       setLoading(false)
-      if (!session && pathname !== '/login') {
+      const isPublic = pathname === '/login' || pathname === '/accept-invite'
+      if (!session && !isPublic) {
         router.push('/login')
       }
       if (session && pathname === '/login') {
@@ -38,7 +39,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
-      if (!session && pathname !== '/login') {
+      const isPublic = pathname === '/login' || pathname === '/accept-invite'
+      if (!session && !isPublic) {
         router.push('/login')
       }
     })
