@@ -46,6 +46,7 @@ function UsersContent() {
   const [deletingUserId, setDeletingUserId] = useState('')
   const [testingReminders, setTestingReminders] = useState(false)
   const [reminderBills, setReminderBills] = useState<ReminderPreviewBill[]>([])
+  const [reminderRecipients, setReminderRecipients] = useState<string[]>([])
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
@@ -184,10 +185,11 @@ function UsersContent() {
       if (!response.ok) throw new Error(data.error || 'Could not test reminders')
 
       setReminderBills(data.bills || [])
+      setReminderRecipients(data.recipients || [])
       setNotice(
         sendEmail
-          ? `Reminder test sent for ${data.count || 0} bill${data.count === 1 ? '' : 's'}.`
-          : `Reminder preview found ${data.count || 0} bill${data.count === 1 ? '' : 's'}.`
+          ? `Reminder test sent to ${data.recipientCount || 0} recipient${data.recipientCount === 1 ? '' : 's'} for ${data.count || 0} bill${data.count === 1 ? '' : 's'}.`
+          : `Reminder preview found ${data.count || 0} bill${data.count === 1 ? '' : 's'} for ${data.recipientCount || 0} recipient${data.recipientCount === 1 ? '' : 's'}.`
       )
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not test reminders')
@@ -345,6 +347,11 @@ function UsersContent() {
 
             {reminderBills.length > 0 && (
               <div className="mt-4 space-y-2">
+                {reminderRecipients.length > 0 && (
+                  <p className="text-xs text-gray-500">
+                    Recipients: {reminderRecipients.join(', ')}
+                  </p>
+                )}
                 {reminderBills.map(bill => (
                   <div key={bill.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">

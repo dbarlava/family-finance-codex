@@ -2,15 +2,16 @@
 
 The app includes a daily Vercel Cron route at `/api/reminders`.
 
-It emails unpaid bills that are overdue, due today, or due within the next 7 days, then writes to `reminder_log` so the same bill and due date are not emailed repeatedly.
+It emails unpaid bills that are overdue, due today, or due within the next 7 days, then writes to `reminder_log` so the same bill, due date, and recipient are not emailed repeatedly.
 
 Required Vercel environment variables:
 
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `GMAIL_USER`
 - `GMAIL_APP_PASSWORD`
-- `REMINDER_TO_EMAIL`
 - `CRON_SECRET`
+
+Reminders are sent to every Supabase Auth user with an email address. `REMINDER_TO_EMAIL` is optional and can be kept as a fallback/test recipient.
 
 The cron runs daily at 15:00 UTC. If `CRON_SECRET` is set, manual calls must include:
 
