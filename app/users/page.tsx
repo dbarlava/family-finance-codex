@@ -28,6 +28,7 @@ function UsersContent() {
   const [mode, setMode] = useState<'invite' | 'create'>('invite')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [inviteLink, setInviteLink] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
@@ -71,6 +72,7 @@ function UsersContent() {
       setSaving(true)
       setError('')
       setNotice('')
+      setInviteLink('')
       const token = await getToken()
       if (!token) throw new Error('You must be signed in')
 
@@ -90,7 +92,12 @@ function UsersContent() {
 
       if (!response.ok) throw new Error(data.error || 'Could not save user')
 
-      setNotice(mode === 'invite' ? `Invite sent to ${email}.` : `User created for ${email}.`)
+      if (mode === 'invite') {
+        setNotice(`Invite link created for ${email}.`)
+        setInviteLink(data.inviteLink || '')
+      } else {
+        setNotice(`User created for ${email}.`)
+      }
       setEmail('')
       setPassword('')
       await fetchUsers()
@@ -118,6 +125,28 @@ function UsersContent() {
         {notice && (
           <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700">
             {notice}
+          </div>
+        )}
+        {inviteLink && (
+          <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-700">
+            <p className="font-semibold text-gray-950">Invite Link</p>
+            <p className="mt-1 text-gray-500">
+              Send this link directly if the Supabase email does not arrive.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input
+                readOnly
+                value={inviteLink}
+                className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => navigator.clipboard.writeText(inviteLink)}
+                className="rounded-lg bg-gray-950 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
+              >
+                Copy
+              </button>
+            </div>
           </div>
         )}
 
@@ -181,7 +210,7 @@ function UsersContent() {
                 disabled={saving}
                 className="w-full rounded-lg bg-gray-950 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
               >
-                {saving ? 'Saving...' : mode === 'invite' ? 'Send Invite' : 'Create User'}
+                {saving ? 'Saving...' : mode === 'invite' ? 'Create Invite Link' : 'Create User'}
               </button>
             </form>
           </section>

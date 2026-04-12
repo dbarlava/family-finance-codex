@@ -107,13 +107,18 @@ export async function POST(request: Request) {
       })
     }
 
-    const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${new URL(request.url).origin}/login`,
+    const { data, error } = await admin.auth.admin.generateLink({
+      type: 'invite',
+      email,
+      options: {
+        redirectTo: `${new URL(request.url).origin}/login`,
+      },
     })
 
     if (error) throw error
 
     return NextResponse.json({
+      inviteLink: data.properties.action_link,
       user: {
         id: data.user.id,
         email: data.user.email,
