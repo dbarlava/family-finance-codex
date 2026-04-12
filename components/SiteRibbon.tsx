@@ -14,6 +14,7 @@ export function SiteRibbon() {
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/bills', label: 'Bills' },
     { href: '/transactions', label: 'Transactions' },
+    { href: '/account', label: 'Account' },
     ...(isAdmin ? [{ href: '/users', label: 'Users' }] : []),
   ]
 
@@ -44,7 +45,7 @@ export function SiteRibbon() {
           </button>
         </div>
 
-        <nav className={`grid gap-2 rounded-lg bg-gray-100 p-1 ${isAdmin ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
+        <nav className={`grid gap-2 rounded-lg bg-gray-100 p-1 ${isAdmin ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}`}>
           {links.map(link => {
             const active = pathname === link.href
             return (
