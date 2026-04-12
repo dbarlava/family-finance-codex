@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Bill, Category } from '@/lib/types'
+import { Bill, Category, Transaction } from '@/lib/types'
 import { AuthGuard } from '@/components/AuthGuard'
 import { AddBillModal } from '@/components/AddBillModal'
 import { PayBillModal } from '@/components/PayBillModal'
@@ -28,6 +28,7 @@ export default function BillsPage() {
 
 function BillsContent() {
   const [bills, setBills] = useState<Bill[]>([])
+  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [balance, setBalance] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -36,6 +37,7 @@ function BillsContent() {
   const [payingBillId, setPayingBillId] = useState<string | null>(null)
   const [deletingBillId, setDeletingBillId] = useState<string | null>(null)
   const [billToPay, setBillToPay] = useState<Bill | null>(null)
+  const [billToView, setBillToView] = useState<Bill | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -45,16 +47,19 @@ function BillsContent() {
     setLoading(true)
     try {
       setError('')
-      const [balanceResult, billsResult] = await Promise.all([
+      const [balanceResult, billsResult, txResult] = await Promise.all([
         supabase.from('balance').select('*').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('bills').select('*').order('due_date', { ascending: true }),
+        supabase.from('transactions').select('*').eq('type', 'payment').order('created_at', { ascending: false }),
       ])
 
       if (balanceResult.error) throw balanceResult.error
       if (billsResult.error) throw billsResult.error
+      if (txResult.error) throw txResult.error
 
       setBalance(balanceResult.data?.amount || 0)
       setBills(billsResult.data || [])
+      setTransactions(txResult.data || [])
     } catch (error) {
       console.error('Error fetching data:', error)
       setError('Could not load bills. Try refreshing the page.')
@@ -122,6 +127,11 @@ function BillsContent() {
   const unpaidBills = bills.filter(b => !b.is_paid)
   const paidBills = bills.filter(b => b.is_paid)
   const totalUnpaid = unpaidBills.reduce((sum, b) => sum + b.amount, 0)
+  const paymentByBillId = new Map(
+    transactions
+      .filter(transaction => transaction.bill_id)
+      .map(transaction => [transaction.bill_id, transaction])
+  )
 
   if (loading) {
     return (
@@ -264,6 +274,12 @@ function BillsContent() {
                         Paid
                       </span>
                       <button
+                        onClick={() => setBillToView(bill)}
+                        className="px-3 py-1.5 bg-white text-gray-700 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                      >
+                        View Details
+                      </button>
+                      <button
                         onClick={() => handleDeleteBill(bill)}
                         disabled={deletingBillId === bill.id}
                         className="px-3 py-1.5 bg-gray-200 text-gray-600 text-sm rounded-lg hover:bg-red-100 hover:text-red-600 transition-colors disabled:opacity-50"
@@ -293,6 +309,78 @@ function BillsContent() {
           onSubmit={details => handleMarkAsPaid(billToPay, details)}
         />
       )}
+
+      {billToView && (
+        <PaidBillDetailsModal
+          bill={billToView}
+          transaction={paymentByBillId.get(billToView.id)}
+          onClose={() => setBillToView(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function PaidBillDetailsModal({
+  bill,
+  transaction,
+  onClose,
+}: {
+  bill: Bill
+  transaction?: Transaction
+  onClose: () => void
+}) {
+  const details = [
+    { label: 'Amount', value: formatCurrency(bill.amount) },
+    { label: 'Category', value: bill.category },
+    { label: 'Due Date', value: formatDateOnly(bill.due_date) },
+    {
+      label: 'Paid Date',
+      value: bill.paid_date ? format(new Date(bill.paid_date), 'MMM d, yyyy h:mm a') : 'Not recorded',
+    },
+    { label: 'Payment Method', value: transaction?.payment_method || 'Not recorded' },
+  ]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
+      <div className="my-8 w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-950">{bill.name}</h2>
+            <p className="mt-1 text-sm text-gray-500">Paid bill details</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Close
+          </button>
+        </div>
+
+        <dl className="mt-5 divide-y divide-gray-100 rounded-lg border border-gray-200">
+          {details.map(detail => (
+            <div key={detail.label} className="flex items-center justify-between gap-4 px-4 py-3">
+              <dt className="text-sm text-gray-500">{detail.label}</dt>
+              <dd className="text-right text-sm font-medium text-gray-950">{detail.value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {bill.notes && (
+          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Bill Notes</p>
+            <p className="mt-1 text-sm text-gray-700">{bill.notes}</p>
+          </div>
+        )}
+
+        {transaction?.memo && (
+          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Payment Memo</p>
+            <p className="mt-1 text-sm text-gray-700">{transaction.memo}</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
