@@ -25,6 +25,15 @@ function getAdminClient() {
   })
 }
 
+function getAppUrl(request: Request) {
+  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL
+  if (configuredUrl) {
+    return configuredUrl.startsWith('http') ? configuredUrl : `https://${configuredUrl}`
+  }
+
+  return new URL(request.url).origin
+}
+
 async function requireUser(request: Request) {
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) {
@@ -111,7 +120,7 @@ export async function POST(request: Request) {
       type: 'invite',
       email,
       options: {
-        redirectTo: `${new URL(request.url).origin}/login`,
+        redirectTo: `${getAppUrl(request)}/login`,
       },
     })
 
