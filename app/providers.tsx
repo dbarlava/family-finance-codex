@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
+import { Navbar } from '@/components/Navbar'
 
 interface AuthContext {
   user: User | null
@@ -53,8 +54,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     router.refresh()
   }
 
+  const showNavbar = Boolean(user) && pathname !== '/login'
+
   return (
     <AuthContext.Provider value={{ user, loading, signOut }}>
+      {showNavbar && <Navbar />}
       {children}
     </AuthContext.Provider>
   )
