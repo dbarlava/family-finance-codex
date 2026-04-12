@@ -93,7 +93,12 @@ function UsersContent() {
       if (!response.ok) throw new Error(data.error || 'Could not save user')
 
       if (mode === 'invite') {
-        setNotice(`Invite link created for ${email}.`)
+        const emailSent = data.emailSent === true
+        setNotice(
+          emailSent
+            ? `Invite email sent to ${email}. They'll receive a link to set up their account.`
+            : `Invite link created for ${email}. Email could not be sent — copy the link below and share it manually.`
+        )
         setInviteLink(data.inviteLink || '')
       } else {
         setNotice(`User created for ${email}.`)
@@ -131,7 +136,7 @@ function UsersContent() {
           <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-700">
             <p className="font-semibold text-gray-950">Invite Link</p>
             <p className="mt-1 text-gray-500">
-              Send this link directly if the Supabase email does not arrive.
+              Share this link if the email doesn't arrive. It expires in 24 hours.
             </p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <input
@@ -210,7 +215,7 @@ function UsersContent() {
                 disabled={saving}
                 className="w-full rounded-lg bg-gray-950 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
               >
-                {saving ? 'Saving...' : mode === 'invite' ? 'Create Invite Link' : 'Create User'}
+                {saving ? 'Sending…' : mode === 'invite' ? 'Send Invite Email' : 'Create User'}
               </button>
             </form>
           </section>
