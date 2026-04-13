@@ -39,6 +39,7 @@ export const PAYMENT_METHODS: PaymentMethod[] = [
 
 export interface Bill {
   id: string
+  household_id: string
   name: string
   amount: number
   due_date: string
@@ -53,6 +54,7 @@ export interface Bill {
 
 export interface Transaction {
   id: string
+  household_id: string
   type: 'deposit' | 'payment'
   amount: number
   description: string
@@ -65,6 +67,23 @@ export interface Transaction {
 
 export interface Balance {
   id: string
+  household_id: string
   amount: number
   updated_at: string
+}
+
+export interface Household {
+  id: string
+  name: string
+  created_by: string | null
+  created_at: string
+}
+
+export interface HouseholdMembership {
+  household_id: string
+  user_id: string
+  email: string
+  role: 'owner' | 'member'
+  created_at: string
+  households?: Household
 }

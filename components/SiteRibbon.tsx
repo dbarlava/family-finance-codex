@@ -7,7 +7,13 @@ const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
 
 export function SiteRibbon() {
   const pathname = usePathname()
-  const { user } = useAuth()
+  const {
+    user,
+    households,
+    activeHouseholdId,
+    setActiveHouseholdId,
+    createHousehold,
+  } = useAuth()
   const isAdmin = !!ADMIN_EMAIL && user?.email === ADMIN_EMAIL
 
   const links = [
@@ -21,6 +27,12 @@ export function SiteRibbon() {
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     window.location.href = '/login'
+  }
+
+  const handleCreateHousehold = async () => {
+    const name = window.prompt('Household name')
+    if (!name?.trim()) return
+    await createHousehold(name)
   }
 
   return (
@@ -43,6 +55,30 @@ export function SiteRibbon() {
           >
             Sign Out
           </button>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <label className="text-sm font-medium text-gray-700">
+            Household
+          </label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <select
+              value={activeHouseholdId || ''}
+              onChange={event => setActiveHouseholdId(event.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"
+            >
+              {households.map(household => (
+                <option key={household.id} value={household.id}>{household.name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleCreateHousehold}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              New Household
+            </button>
+          </div>
         </div>
 
         <nav className={`grid gap-2 rounded-lg bg-gray-100 p-1 ${isAdmin ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}`}>

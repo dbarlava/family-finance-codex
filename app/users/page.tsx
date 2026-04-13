@@ -33,8 +33,9 @@ export default function UsersPage() {
 }
 
 function UsersContent() {
-  const { user } = useAuth()
+  const { user, activeHouseholdId, activeHousehold, householdsLoading } = useAuth()
   const isAdmin = !!ADMIN_EMAIL && user?.email === ADMIN_EMAIL
+  const canManageUsers = isAdmin || (!!activeHousehold && activeHousehold.created_by === user?.id)
 
   const [users, setUsers] = useState<ManagedUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,8 +52,9 @@ function UsersContent() {
   const [notice, setNotice] = useState('')
 
   useEffect(() => {
-    fetchUsers()
-  }, [])
+    if (activeHouseholdId) fetchUsers()
+    if (!activeHouseholdId && !householdsLoading) setLoading(false)
+  }, [activeHouseholdId, householdsLoading])
 
   const getToken = async () => {
     const { data } = await supabase.auth.getSession()
@@ -66,7 +68,10 @@ function UsersContent() {
       const token = await getToken()
       if (!token) throw new Error('You must be signed in')
 
-      const response = await fetch('/api/users', {
+      const url = activeHouseholdId
+        ? `/api/users?householdId=${encodeURIComponent(activeHouseholdId)}`
+        : '/api/users'
+      const response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -93,6 +98,7 @@ function UsersContent() {
       setInviteLink('')
       const token = await getToken()
       if (!token) throw new Error('You must be signed in')
+      if (!activeHouseholdId) throw new Error('Choose a household first')
 
       const response = await fetch('/api/users', {
         method: 'POST',
@@ -103,6 +109,7 @@ function UsersContent() {
         body: JSON.stringify({
           mode,
           email,
+          householdId: activeHouseholdId,
           password: mode === 'create' ? password : undefined,
         }),
       })
@@ -138,7 +145,7 @@ function UsersContent() {
     }
 
     const label = managedUser.email || 'this user'
-    const confirmed = window.confirm(`Delete ${label}? They will no longer be able to sign in.`)
+    const confirmed = window.confirm(`Remove ${label} from ${activeHousehold?.name || 'this household'}?`)
     if (!confirmed) return
 
     try {
@@ -148,7 +155,9 @@ function UsersContent() {
       const token = await getToken()
       if (!token) throw new Error('You must be signed in')
 
-      const response = await fetch(`/api/users?id=${encodeURIComponent(managedUser.id)}`, {
+      const params = new URLSearchParams({ id: managedUser.id })
+      if (activeHouseholdId) params.set('householdId', activeHouseholdId)
+      const response = await fetch(`/api/users?${params.toString()}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -158,7 +167,7 @@ function UsersContent() {
 
       if (!response.ok) throw new Error(data.error || 'Could not delete user')
 
-      setNotice(`Deleted ${label}.`)
+      setNotice(`Removed ${label} from ${activeHousehold?.name || 'this household'}.`)
       await fetchUsers()
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not delete user')
@@ -198,14 +207,22 @@ function UsersContent() {
     }
   }
 
-  if (!isAdmin) {
+  if (householdsLoading || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  if (!canManageUsers) {
     return (
       <div className="min-h-screen bg-gray-50">
         <SiteRibbon />
         <main className="mx-auto flex max-w-6xl flex-col items-center justify-center px-4 py-32 text-center">
           <p className="text-4xl">🔒</p>
           <h1 className="mt-4 text-xl font-bold text-gray-950">Access Restricted</h1>
-          <p className="mt-2 text-gray-500">This page is only available to the family admin.</p>
+          <p className="mt-2 text-gray-500">This page is only available to the household owner.</p>
           <a href="/dashboard" className="mt-6 rounded-lg bg-gray-950 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-700">
             Go to Dashboard
           </a>
@@ -220,7 +237,9 @@ function UsersContent() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-950">Users</h1>
-          <p className="mt-1 text-gray-500">Invite family members or create a login directly.</p>
+          <p className="mt-1 text-gray-500">
+            Invite family members or create a login directly{activeHousehold ? ` for ${activeHousehold.name}` : ''}.
+          </p>
         </div>
 
         {error && (

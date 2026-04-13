@@ -114,7 +114,7 @@ function getAcceptInviteLink(appUrl: string, tokenHash: string, type: string) {
   return inviteUrl.toString()
 }
 
-async function requireAdmin(request: Request) {
+async function requireHouseholdManager(request: Request, householdId: string | null) {
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
@@ -126,7 +126,30 @@ async function requireAdmin(request: Request) {
   }
 
   const adminEmail = process.env.ADMIN_EMAIL
-  if (!adminEmail || data.user.email !== adminEmail) {
+  if (adminEmail && data.user.email === adminEmail) {
+    return { user: data.user }
+  }
+
+  if (!householdId) {
+    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  }
+
+  const { data: membership, error: membershipError } = await getAdminClient()
+    .from('household_members')
+    .select('role')
+    .eq('household_id', householdId)
+    .eq('user_id', data.user.id)
+    .maybeSingle()
+
+  if (membershipError) {
+    return {
+      error: NextResponse.json(
+        { error: membershipError.message || 'Could not check household access' },
+        { status: 500 }
+      ),
+    }
+  }
+  if (membership?.role !== 'owner') {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 
@@ -134,7 +157,8 @@ async function requireAdmin(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireAdmin(request)
+  const householdId = new URL(request.url).searchParams.get('householdId')
+  const auth = await requireHouseholdManager(request, householdId)
   if ('error' in auth) return auth.error
 
   try {
@@ -144,9 +168,22 @@ export async function GET(request: Request) {
     })
 
     if (error) throw error
+    let users = data.users
+
+    if (householdId) {
+      const { data: members, error: membersError } = await getAdminClient()
+        .from('household_members')
+        .select('user_id')
+        .eq('household_id', householdId)
+
+      if (membersError) throw membersError
+
+      const memberIds = new Set((members || []).map(member => member.user_id))
+      users = users.filter(user => memberIds.has(user.id))
+    }
 
     return NextResponse.json({
-      users: data.users.map(user => ({
+      users: users.map(user => ({
         id: user.id,
         email: user.email,
         created_at: user.created_at,
@@ -164,14 +201,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAdmin(request)
-  if ('error' in auth) return auth.error
-
   try {
     const body = await request.json()
     const email = String(body.email || '').trim().toLowerCase()
     const mode = body.mode === 'create' ? 'create' : 'invite'
     const password = String(body.password || '')
+    const householdId = String(body.householdId || '')
+    const auth = await requireHouseholdManager(request, householdId || null)
+    if ('error' in auth) return auth.error
 
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
@@ -191,6 +228,15 @@ export async function POST(request: Request) {
       })
 
       if (error) throw error
+      if (householdId) {
+        const { error: memberError } = await admin.from('household_members').upsert({
+          household_id: householdId,
+          user_id: data.user.id,
+          email,
+          role: 'member',
+        })
+        if (memberError) throw memberError
+      }
 
       return NextResponse.json({
         user: {
@@ -212,6 +258,15 @@ export async function POST(request: Request) {
     })
 
     if (error) throw error
+    if (householdId) {
+      const { error: memberError } = await admin.from('household_members').upsert({
+        household_id: householdId,
+        user_id: data.user.id,
+        email,
+        role: 'member',
+      })
+      if (memberError) throw memberError
+    }
 
     const tokenHash = data.properties.hashed_token
     const verificationType = data.properties.verification_type || 'invite'
@@ -241,12 +296,12 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const auth = await requireAdmin(request)
-  if ('error' in auth) return auth.error
-
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('id')
+    const householdId = searchParams.get('householdId')
+    const auth = await requireHouseholdManager(request, householdId)
+    if ('error' in auth) return auth.error
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
@@ -256,7 +311,19 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'You cannot delete your own admin account' }, { status: 400 })
     }
 
-    const { error } = await getAdminClient().auth.admin.deleteUser(userId)
+    const admin = getAdminClient()
+    if (householdId) {
+      const { error } = await admin
+        .from('household_members')
+        .delete()
+        .eq('household_id', householdId)
+        .eq('user_id', userId)
+
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    const { error } = await admin.auth.admin.deleteUser(userId)
     if (error) throw error
 
     return NextResponse.json({ ok: true })

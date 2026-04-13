@@ -8,9 +8,15 @@ import type { Bill } from '@/lib/types'
 const reminderWindowDays = 7
 
 type ReminderLog = {
+  household_id: string
   bill_id: string
   due_date: string
   sent_to: string
+}
+
+type HouseholdRecipients = {
+  householdId: string
+  recipients: string[]
 }
 
 function getAdminClient() {
@@ -61,26 +67,27 @@ async function isAdminRequest(request: Request) {
   return !!adminEmail && data.user.email === adminEmail
 }
 
-async function getReminderRecipients() {
+async function getReminderRecipientsByHousehold(): Promise<HouseholdRecipients[]> {
   const fallbackEmail = process.env.REMINDER_TO_EMAIL
-  const { data, error } = await getAdminClient().auth.admin.listUsers({
-    page: 1,
-    perPage: 100,
-  })
+  const { data, error } = await getAdminClient()
+    .from('household_members')
+    .select('household_id,email')
 
   if (error) throw error
 
-  const recipients = new Set(
-    data.users
-      .map(user => user.email?.trim().toLowerCase())
-      .filter((email): email is string => !!email)
-  )
-
-  if (fallbackEmail) {
-    recipients.add(fallbackEmail.trim().toLowerCase())
+  const recipientsByHousehold = new Map<string, Set<string>>()
+  for (const member of data || []) {
+    if (!member.household_id || !member.email) continue
+    const recipients = recipientsByHousehold.get(member.household_id) || new Set<string>()
+    recipients.add(member.email.trim().toLowerCase())
+    if (fallbackEmail) recipients.add(fallbackEmail.trim().toLowerCase())
+    recipientsByHousehold.set(member.household_id, recipients)
   }
 
-  return Array.from(recipients)
+  return Array.from(recipientsByHousehold.entries()).map(([householdId, recipients]) => ({
+    householdId,
+    recipients: Array.from(recipients),
+  }))
 }
 
 async function sendReminderEmail(bills: Bill[], to: string) {
@@ -248,8 +255,8 @@ export async function GET(request: Request) {
     const force = url.searchParams.get('force') === '1' || url.searchParams.get('force') === 'true'
 
     const supabase = getAdminClient()
-    const recipients = await getReminderRecipients()
-    if (recipients.length === 0) throw new Error('No reminder recipients found')
+    const householdRecipients = await getReminderRecipientsByHousehold()
+    if (householdRecipients.length === 0) throw new Error('No reminder recipients found')
 
     const today = new Date()
     const dueThrough = format(addDays(today, reminderWindowDays), 'yyyy-MM-dd')
@@ -264,28 +271,35 @@ export async function GET(request: Request) {
     if (billsError) throw billsError
 
     const candidates = (bills || []) as Bill[]
+    const allRecipients = Array.from(new Set(householdRecipients.flatMap(group => group.recipients)))
     if (candidates.length === 0) {
-      return NextResponse.json({ sent: false, count: 0, recipientCount: recipients.length, recipients, bills: [] })
+      return NextResponse.json({ sent: false, count: 0, recipientCount: allRecipients.length, recipients: allRecipients, bills: [] })
     }
 
     const billIds = candidates.map(bill => bill.id)
     const { data: existingLogs, error: logsError } = await supabase
       .from('reminder_log')
-      .select('bill_id,due_date,sent_to')
-      .in('sent_to', recipients)
+      .select('household_id,bill_id,due_date,sent_to')
+      .in('sent_to', allRecipients)
       .in('bill_id', billIds)
 
     if (logsError) throw logsError
 
     const logs = (existingLogs || []) as ReminderLog[]
-    const remindersByRecipient = recipients.map(recipient => ({
-      recipient,
-      bills: getBillsForRecipient(recipient, candidates, logs, force),
-    })).filter(reminder => reminder.bills.length > 0)
+    const remindersByRecipient = householdRecipients.flatMap(group => {
+      const householdBills = candidates.filter(bill => bill.household_id === group.householdId)
+      const householdLogs = logs.filter(log => log.household_id === group.householdId)
+
+      return group.recipients.map(recipient => ({
+        householdId: group.householdId,
+        recipient,
+        bills: getBillsForRecipient(recipient, householdBills, householdLogs, force),
+      }))
+    }).filter(reminder => reminder.bills.length > 0)
     const previewBills = getBillPreview(candidates)
 
     if (remindersByRecipient.length === 0) {
-      return NextResponse.json({ sent: false, count: 0, recipientCount: recipients.length, recipients, dryRun, bills: [] })
+      return NextResponse.json({ sent: false, count: 0, recipientCount: allRecipients.length, recipients: allRecipients, dryRun, bills: [] })
     }
 
     if (dryRun) {
@@ -294,7 +308,7 @@ export async function GET(request: Request) {
         dryRun: true,
         count: candidates.length,
         recipientCount: remindersByRecipient.length,
-        recipients: remindersByRecipient.map(reminder => reminder.recipient),
+        recipients: Array.from(new Set(remindersByRecipient.map(reminder => reminder.recipient))),
         bills: previewBills,
       })
     }
@@ -305,6 +319,7 @@ export async function GET(request: Request) {
 
     const { error: insertError } = await supabase.from('reminder_log').upsert(
       remindersByRecipient.flatMap(reminder => reminder.bills.map(bill => ({
+        household_id: reminder.householdId,
         bill_id: bill.id,
         due_date: bill.due_date,
         sent_to: reminder.recipient,
@@ -321,7 +336,7 @@ export async function GET(request: Request) {
       sent: true,
       count: candidates.length,
       recipientCount: remindersByRecipient.length,
-      recipients: remindersByRecipient.map(reminder => reminder.recipient),
+      recipients: Array.from(new Set(remindersByRecipient.map(reminder => reminder.recipient))),
       bills: previewBills,
     })
   } catch (error) {

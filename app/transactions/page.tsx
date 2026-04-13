@@ -5,6 +5,7 @@ import { Transaction, CATEGORIES, Category } from '@/lib/types'
 import { AuthGuard } from '@/components/AuthGuard'
 import { DepositModal } from '@/components/DepositModal'
 import { SiteRibbon } from '@/components/SiteRibbon'
+import { useAuth } from '@/app/providers'
 import { format } from 'date-fns'
 import { formatCurrency, getCategoryColor, recordDeposit } from '@/lib/finance'
 
@@ -17,6 +18,7 @@ export default function TransactionsPage() {
 }
 
 function TransactionsContent() {
+  const { activeHouseholdId, householdsLoading } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [balance, setBalance] = useState<number>(0)
   const [loading, setLoading] = useState(true)
@@ -25,16 +27,18 @@ function TransactionsContent() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (activeHouseholdId) fetchData()
+    if (!activeHouseholdId && !householdsLoading) setLoading(false)
+  }, [activeHouseholdId, householdsLoading])
 
   const fetchData = async () => {
+    if (!activeHouseholdId) return
     setLoading(true)
     try {
       setError('')
       const [balanceResult, txResult] = await Promise.all([
-        supabase.from('balance').select('*').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('transactions').select('*').order('created_at', { ascending: false }),
+        supabase.from('balance').select('*').eq('household_id', activeHouseholdId).maybeSingle(),
+        supabase.from('transactions').select('*').eq('household_id', activeHouseholdId).order('created_at', { ascending: false }),
       ])
 
       if (balanceResult.error) throw balanceResult.error
@@ -51,9 +55,10 @@ function TransactionsContent() {
   }
 
   const handleDeposit = async (amount: number, description: string) => {
+    if (!activeHouseholdId) return
     try {
       setError('')
-      setBalance(await recordDeposit(amount, description))
+      setBalance(await recordDeposit(amount, description, activeHouseholdId))
       setShowDeposit(false)
       await fetchData()
     } catch (error) {
@@ -76,7 +81,7 @@ function TransactionsContent() {
     ? transactions
     : transactions.filter(tx => tx.category === categoryFilter)
 
-  if (loading) {
+  if (loading || householdsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
@@ -88,6 +93,12 @@ function TransactionsContent() {
     <div className="min-h-screen bg-gray-50">
       <SiteRibbon />
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {!activeHouseholdId ? (
+          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
+            Create a household before adding transactions.
+          </div>
+        ) : (
+        <>
         {/* Header */}
         <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -183,6 +194,8 @@ function TransactionsContent() {
             </div>
           )}
         </div>
+        </>
+        )}
       </main>
 
       {showDeposit && (

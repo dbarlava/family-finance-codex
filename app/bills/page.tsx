@@ -6,6 +6,7 @@ import { AuthGuard } from '@/components/AuthGuard'
 import { AddBillModal } from '@/components/AddBillModal'
 import { PayBillModal } from '@/components/PayBillModal'
 import { SiteRibbon } from '@/components/SiteRibbon'
+import { useAuth } from '@/app/providers'
 import { format } from 'date-fns'
 import type { PaymentMethod, RecurrencePeriod } from '@/lib/types'
 import {
@@ -28,6 +29,7 @@ export default function BillsPage() {
 }
 
 function BillsContent() {
+  const { activeHouseholdId, householdsLoading } = useAuth()
   const [bills, setBills] = useState<Bill[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [balance, setBalance] = useState<number>(0)
@@ -42,17 +44,19 @@ function BillsContent() {
   const [billToView, setBillToView] = useState<Bill | null>(null)
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (activeHouseholdId) fetchData()
+    if (!activeHouseholdId && !householdsLoading) setLoading(false)
+  }, [activeHouseholdId, householdsLoading])
 
   const fetchData = async () => {
+    if (!activeHouseholdId) return
     setLoading(true)
     try {
       setError('')
       const [balanceResult, billsResult, txResult] = await Promise.all([
-        supabase.from('balance').select('*').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('bills').select('*').order('due_date', { ascending: true }),
-        supabase.from('transactions').select('*').eq('type', 'payment').order('created_at', { ascending: false }),
+        supabase.from('balance').select('*').eq('household_id', activeHouseholdId).maybeSingle(),
+        supabase.from('bills').select('*').eq('household_id', activeHouseholdId).order('due_date', { ascending: true }),
+        supabase.from('transactions').select('*').eq('household_id', activeHouseholdId).eq('type', 'payment').order('created_at', { ascending: false }),
       ])
 
       if (balanceResult.error) throw balanceResult.error
@@ -79,9 +83,10 @@ function BillsContent() {
     recurrence_period?: RecurrencePeriod
     notes?: string
   }) => {
+    if (!activeHouseholdId) return
     try {
       setError('')
-      await addBill(billData)
+      await addBill({ ...billData, household_id: activeHouseholdId })
       setShowAddModal(false)
       await fetchData()
     } catch (error) {
@@ -157,7 +162,7 @@ function BillsContent() {
       .map(transaction => [transaction.bill_id, transaction])
   )
 
-  if (loading) {
+  if (loading || householdsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
@@ -169,6 +174,12 @@ function BillsContent() {
     <div className="min-h-screen bg-gray-50">
       <SiteRibbon />
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {!activeHouseholdId ? (
+          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
+            Create a household before adding bills.
+          </div>
+        ) : (
+        <>
         {/* Header */}
         <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -324,6 +335,8 @@ function BillsContent() {
             </div>
           )}
         </div>
+        </>
+        )}
       </main>
 
       {showAddModal && (

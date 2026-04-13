@@ -66,6 +66,7 @@ export const getCategoryColor = (category: string) => {
 }
 
 export type NewBill = {
+  household_id: string
   name: string
   amount: number
   due_date: string
@@ -91,14 +92,16 @@ async function restorePaidBillAmount(bill: Bill) {
   const { data: currentBalance, error: balanceError } = await supabase
     .from('balance')
     .select('*')
-    .order('updated_at', { ascending: false })
-    .limit(1)
+    .eq('household_id', bill.household_id)
     .maybeSingle()
 
   if (balanceError) throw balanceError
 
   if (!currentBalance) {
-    const { error } = await supabase.from('balance').insert({ amount: bill.amount })
+    const { error } = await supabase.from('balance').insert({
+      household_id: bill.household_id,
+      amount: bill.amount,
+    })
     if (error) throw error
   } else {
     const { error } = await supabase
@@ -107,7 +110,7 @@ async function restorePaidBillAmount(bill: Bill) {
         amount: Number(currentBalance.amount) + Number(bill.amount),
         updated_at: new Date().toISOString(),
       })
-      .eq('id', currentBalance.id)
+      .eq('household_id', bill.household_id)
 
     if (error) throw error
   }
@@ -124,7 +127,11 @@ async function restorePaidBillAmount(bill: Bill) {
 export async function deleteBill(bill: Bill) {
   await restorePaidBillAmount(bill)
 
-  const { error } = await supabase.from('bills').delete().eq('id', bill.id)
+  const { error } = await supabase
+    .from('bills')
+    .delete()
+    .eq('id', bill.id)
+    .eq('household_id', bill.household_id)
   if (error) throw error
 }
 
@@ -138,14 +145,16 @@ export async function markBillUnpaid(bill: Bill) {
       paid_date: null,
     })
     .eq('id', bill.id)
+    .eq('household_id', bill.household_id)
 
   if (error) throw error
 }
 
-export async function recordDeposit(amount: number, description: string) {
+export async function recordDeposit(amount: number, description: string, householdId: string) {
   const { data, error } = await supabase.rpc('record_deposit', {
     p_amount: amount,
     p_description: description,
+    p_household_id: householdId,
   })
 
   if (error) throw error

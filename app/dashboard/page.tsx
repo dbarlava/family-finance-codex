@@ -6,6 +6,7 @@ import { AuthGuard } from '@/components/AuthGuard'
 import { BalanceCard } from '@/components/BalanceCard'
 import { PayBillModal } from '@/components/PayBillModal'
 import { SiteRibbon } from '@/components/SiteRibbon'
+import { useAuth } from '@/app/providers'
 import { format } from 'date-fns'
 import type { PaymentMethod } from '@/lib/types'
 import {
@@ -27,6 +28,7 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
+  const { activeHouseholdId, householdsLoading } = useAuth()
   const [balance, setBalance] = useState<number>(0)
   const [upcomingBills, setUpcomingBills] = useState<Bill[]>([])
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([])
@@ -36,18 +38,20 @@ function DashboardContent() {
   const [billToPay, setBillToPay] = useState<Bill | null>(null)
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (activeHouseholdId) fetchData()
+    if (!activeHouseholdId && !householdsLoading) setLoading(false)
+  }, [activeHouseholdId, householdsLoading])
 
   const fetchData = async () => {
+    if (!activeHouseholdId) return
     try {
       setLoading(true)
       setError('')
 
       const [balanceResult, billsResult, transactionsResult] = await Promise.all([
-        supabase.from('balance').select('*').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('bills').select('*').order('due_date', { ascending: true }),
-        supabase.from('transactions').select('*').order('created_at', { ascending: false }).limit(10),
+        supabase.from('balance').select('*').eq('household_id', activeHouseholdId).maybeSingle(),
+        supabase.from('bills').select('*').eq('household_id', activeHouseholdId).order('due_date', { ascending: true }),
+        supabase.from('transactions').select('*').eq('household_id', activeHouseholdId).order('created_at', { ascending: false }).limit(10),
       ])
 
       if (balanceResult.error) throw balanceResult.error
@@ -70,9 +74,10 @@ function DashboardContent() {
   }
 
   const handleDeposit = async (amount: number, description: string) => {
+    if (!activeHouseholdId) return
     try {
       setError('')
-      setBalance(await recordDeposit(amount, description))
+      setBalance(await recordDeposit(amount, description, activeHouseholdId))
       await fetchData()
     } catch (error) {
       console.error('Error adding deposit:', error)
@@ -103,7 +108,7 @@ function DashboardContent() {
   const projectedBalance = balance - dueNext30
   const overdueCount = upcomingBills.filter(bill => isOverdue(bill.due_date)).length
 
-  if (loading) {
+  if (loading || householdsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
@@ -115,6 +120,11 @@ function DashboardContent() {
     <div className="min-h-screen bg-gray-50">
       <SiteRibbon />
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {!activeHouseholdId ? (
+          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
+            Create a household to start tracking bills and transactions.
+          </div>
+        ) : (
         <div className="grid grid-cols-1 gap-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-950">Dashboard</h1>
@@ -241,6 +251,7 @@ function DashboardContent() {
             )}
           </div>
         </div>
+        )}
       </main>
 
       {billToPay && (
