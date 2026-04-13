@@ -6,6 +6,7 @@ export type Category =
   | 'Groceries'
   | 'Transportation'
   | 'Healthcare'
+  | 'Credit Card'
   | 'Entertainment'
   | 'Education'
   | 'Savings'
@@ -13,7 +14,7 @@ export type Category =
 
 export const CATEGORIES: Category[] = [
   'Housing', 'Utilities', 'Insurance', 'Subscriptions',
-  'Groceries', 'Transportation', 'Healthcare', 'Entertainment',
+  'Groceries', 'Transportation', 'Healthcare', 'Credit Card', 'Entertainment',
   'Education', 'Savings', 'Other'
 ]
 

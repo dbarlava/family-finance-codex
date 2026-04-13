@@ -55,6 +55,7 @@ export const getCategoryColor = (category: string) => {
     Groceries: 'bg-orange-100 text-orange-800',
     Transportation: 'bg-blue-100 text-blue-800',
     Healthcare: 'bg-red-100 text-red-800',
+    'Credit Card': 'bg-rose-100 text-rose-800',
     Entertainment: 'bg-indigo-100 text-indigo-800',
     Education: 'bg-cyan-100 text-cyan-800',
     Savings: 'bg-emerald-100 text-emerald-800',
