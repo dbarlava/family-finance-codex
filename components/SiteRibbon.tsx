@@ -1,5 +1,6 @@
 'use client'
 import { usePathname } from 'next/navigation'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/app/providers'
 
@@ -7,6 +8,8 @@ const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL
 
 export function SiteRibbon() {
   const pathname = usePathname()
+  const [householdError, setHouseholdError] = useState('')
+  const [creatingHousehold, setCreatingHousehold] = useState(false)
   const {
     user,
     households,
@@ -32,7 +35,15 @@ export function SiteRibbon() {
   const handleCreateHousehold = async () => {
     const name = window.prompt('Household name')
     if (!name?.trim()) return
-    await createHousehold(name)
+    try {
+      setCreatingHousehold(true)
+      setHouseholdError('')
+      await createHousehold(name)
+    } catch (error) {
+      setHouseholdError(error instanceof Error ? error.message : 'Could not create household')
+    } finally {
+      setCreatingHousehold(false)
+    }
   }
 
   return (
@@ -74,12 +85,18 @@ export function SiteRibbon() {
             <button
               type="button"
               onClick={handleCreateHousehold}
+              disabled={creatingHousehold}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              New Household
+              {creatingHousehold ? 'Creating...' : 'New Household'}
             </button>
           </div>
         </div>
+        {householdError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {householdError}
+          </div>
+        )}
 
         <nav className={`grid gap-2 rounded-lg bg-gray-100 p-1 ${isAdmin ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}`}>
           {links.map(link => {
