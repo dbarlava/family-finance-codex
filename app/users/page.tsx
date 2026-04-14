@@ -100,7 +100,7 @@ function UsersContent() {
       if (!token) throw new Error('You must be signed in')
       if (!activeHouseholdId) throw new Error('Choose a household first')
 
-      const response = await fetch('/api/users', {
+      const response = await fetch(mode === 'invite' ? '/api/households' : '/api/users', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -121,7 +121,7 @@ function UsersContent() {
         const emailSent = data.emailSent === true
         setNotice(
           emailSent
-            ? `Invite email sent to ${email}. They'll receive a link to set up their account.`
+            ? `Invite email sent to ${email}. They'll receive a link to join this household.`
             : `Invite link created for ${email}. Email could not be sent — copy the link below and share it manually.`
         )
         setInviteLink(data.inviteLink || '')
@@ -256,7 +256,7 @@ function UsersContent() {
           <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-700">
             <p className="font-semibold text-gray-950">Invite Link</p>
             <p className="mt-1 text-gray-500">
-              Share this link if the email doesn't arrive. It expires in 24 hours.
+              Share this link if the email doesn't arrive. It opens the household join page.
             </p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <input
