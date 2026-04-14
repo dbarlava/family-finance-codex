@@ -58,7 +58,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         setActiveHouseholdIdState(null)
         setHouseholdsLoading(false)
       }
-      const isPublic = pathname === '/login' || pathname === '/accept-invite'
+      const isPublic = pathname === '/login' || pathname === '/accept-invite' || pathname === '/join-household'
       if (!session && !isPublic) {
         router.push('/login')
       }
@@ -78,7 +78,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         setActiveHouseholdIdState(null)
         setHouseholdsLoading(false)
       }
-      const isPublic = pathname === '/login' || pathname === '/accept-invite'
+      const isPublic = pathname === '/login' || pathname === '/accept-invite' || pathname === '/join-household'
       if (!session && !isPublic) {
         router.push('/login')
       }

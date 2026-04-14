@@ -138,6 +138,7 @@ BEGIN
 END;
 $$;
 
+
 DROP TRIGGER IF EXISTS bills_normalize_due_date ON bills;
 
 CREATE TRIGGER bills_normalize_due_date
@@ -185,6 +186,7 @@ BEGIN
   RETURN v_new_balance;
 END;
 $$;
+
 
 CREATE OR REPLACE FUNCTION pay_bill(
   p_bill_id UUID,
@@ -294,6 +296,31 @@ $$;
 
 
 -- ============================================================
+-- HOUSEHOLD INVITE LINKS
+-- Allows household owners to invite existing users or new users.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS household_invites (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id UUID NOT NULL,
+  email        TEXT NOT NULL,
+  token        TEXT NOT NULL UNIQUE,
+  invited_by   UUID,
+  accepted_at  TIMESTAMPTZ,
+  expires_at   TIMESTAMPTZ NOT NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS household_invites_household_idx
+  ON household_invites (household_id);
+
+CREATE INDEX IF NOT EXISTS household_invites_email_idx
+  ON household_invites (lower(email));
+
+ALTER TABLE household_invites ENABLE ROW LEVEL SECURITY;
+
+
+-- ============================================================
 -- OPTIONAL: Set your starting balance
 -- Uncomment and edit the line below to set an initial balance
 -- (you can also do this from the app's dashboard)
@@ -314,6 +341,19 @@ CREATE TABLE IF NOT EXISTS households (
   created_by  UUID,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'household_invites_household_id_fkey'
+  ) THEN
+    ALTER TABLE household_invites
+      ADD CONSTRAINT household_invites_household_id_fkey
+      FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS household_members (
   household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
