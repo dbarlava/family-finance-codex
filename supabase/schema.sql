@@ -82,24 +82,28 @@ ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reminder_log ENABLE ROW LEVEL SECURITY;
 
 -- Allow any authenticated (logged-in) user full access to all tables
+DROP POLICY IF EXISTS "Authenticated users can manage balance" ON balance;
 CREATE POLICY "Authenticated users can manage balance"
   ON balance FOR ALL
   TO authenticated
   USING (true)
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Authenticated users can manage bills" ON bills;
 CREATE POLICY "Authenticated users can manage bills"
   ON bills FOR ALL
   TO authenticated
   USING (true)
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Authenticated users can manage transactions" ON transactions;
 CREATE POLICY "Authenticated users can manage transactions"
   ON transactions FOR ALL
   TO authenticated
   USING (true)
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Authenticated users can manage reminder log" ON reminder_log;
 CREATE POLICY "Authenticated users can manage reminder log"
   ON reminder_log FOR ALL
   TO authenticated
