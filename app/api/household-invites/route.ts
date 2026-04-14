@@ -40,6 +40,26 @@ async function getInvite(token: string) {
   return data
 }
 
+async function findUserByEmail(email: string) {
+  const admin = getAdminClient()
+  const normalizedEmail = email.trim().toLowerCase()
+
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage: 100,
+    })
+
+    if (error) throw error
+
+    const user = data.users.find(user => user.email?.trim().toLowerCase() === normalizedEmail)
+    if (user) return user
+    if (data.users.length < 100) return null
+  }
+
+  return null
+}
+
 export async function GET(request: Request) {
   try {
     const token = new URL(request.url).searchParams.get('token') || ''
@@ -104,11 +124,23 @@ export async function POST(request: Request) {
         email_confirm: true,
       })
 
-      if (error) throw error
-      if (!data.user) throw new Error('Could not create user')
-      userId = data.user.id
+      if (error) {
+        const existingUser = await findUserByEmail(email)
+        if (!existingUser) throw error
+
+        const { error: updateError } = await admin.auth.admin.updateUserById(existingUser.id, {
+          password,
+          email_confirm: true,
+        })
+
+        if (updateError) throw updateError
+        userId = existingUser.id
+      } else {
+        if (!data.user) throw new Error('Could not create user')
+        userId = data.user.id
+        createdUser = true
+      }
       userEmail = email
-      createdUser = true
     }
 
     if (userEmail !== invitedEmail) {
