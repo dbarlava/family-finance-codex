@@ -15,30 +15,6 @@ CREATE TABLE IF NOT EXISTS balance (
 ALTER TABLE balance
   ADD COLUMN IF NOT EXISTS singleton BOOLEAN NOT NULL DEFAULT TRUE CHECK (singleton);
 
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name = 'balance'
-      AND column_name = 'household_id'
-  ) THEN
-    DELETE FROM balance
-    WHERE id NOT IN (
-      SELECT id
-      FROM balance
-      ORDER BY updated_at DESC NULLS LAST
-      LIMIT 1
-    );
-
-    CREATE UNIQUE INDEX IF NOT EXISTS balance_singleton_idx ON balance (singleton);
-
-    INSERT INTO balance (singleton, amount) VALUES (TRUE, 0)
-    ON CONFLICT (singleton) DO NOTHING;
-  END IF;
-END $$;
-
 
 -- 2. BILLS TABLE
 -- Each bill has a name, amount, due date, category, and optional recurrence
