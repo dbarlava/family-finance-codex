@@ -15,19 +15,29 @@ CREATE TABLE IF NOT EXISTS balance (
 ALTER TABLE balance
   ADD COLUMN IF NOT EXISTS singleton BOOLEAN NOT NULL DEFAULT TRUE CHECK (singleton);
 
-DELETE FROM balance
-WHERE id NOT IN (
-  SELECT id
-  FROM balance
-  ORDER BY updated_at DESC NULLS LAST
-  LIMIT 1
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'balance'
+      AND column_name = 'household_id'
+  ) THEN
+    DELETE FROM balance
+    WHERE id NOT IN (
+      SELECT id
+      FROM balance
+      ORDER BY updated_at DESC NULLS LAST
+      LIMIT 1
+    );
 
-CREATE UNIQUE INDEX IF NOT EXISTS balance_singleton_idx ON balance (singleton);
+    CREATE UNIQUE INDEX IF NOT EXISTS balance_singleton_idx ON balance (singleton);
 
--- Insert the one balance row (you'll update the amount in the app or via SQL)
-INSERT INTO balance (singleton, amount) VALUES (TRUE, 0)
-ON CONFLICT (singleton) DO NOTHING;
+    INSERT INTO balance (singleton, amount) VALUES (TRUE, 0)
+    ON CONFLICT (singleton) DO NOTHING;
+  END IF;
+END $$;
 
 
 -- 2. BILLS TABLE
